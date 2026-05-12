@@ -1,0 +1,9 @@
+{
+  "id": "cs",
+  "display_name": "客服",
+  "description": "對外客戶服務 — 車貸、信貸、利率、申請、客訴",
+  "default_kb": "faq",
+  "color": "#5b6cff",
+  "icon": "CS",
+  "allowed_categories": ["loan", "complaint", "general"]
+}

@@ -1,0 +1,9 @@
+{
+  "id": "legal",
+  "display_name": "法務",
+  "description": "合約審閱、NDA、合規、條款解釋",
+  "default_kb": "faq",
+  "color": "#8b5cf6",
+  "icon": "LG",
+  "allowed_categories": ["legal", "general"]
+}

@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+backend/.venv/
+backend/data/
+backend/.env
+backend/tests/
+
+# Node
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Git & misc
+.git/
+.gitignore
+.github/
+.vscode/
+.idea/
+*.log
+
+# Project artifacts
+docs/
+PLAN.md
+PROGRESS.md
+README.md
+*.md
+!backend/README.md

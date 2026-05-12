@@ -1,0 +1,49 @@
+id: cs_default_v2
+workspace: cs
+description: 客服 5-step — Router → Knowledge → Policy + Tone（並行）→ Composer
+trigger: on_user_message
+
+steps:
+  - id: router
+    agent: router
+    input:
+      message: $event.message
+      history: $context.history
+
+  - id: knowledge
+    agent: knowledge
+    input:
+      query: $event.message
+      workspace_id: $context.workspace_id
+      kb_name: faq
+      top_k: 5
+
+  - id: policy
+    agent: policy
+    input:
+      message: $event.message
+      intent: $router
+      category: $router.category
+
+  - id: tone
+    agent: tone
+    input:
+      message: $event.message
+      history: $context.history
+      intent: $router
+
+  - id: composer
+    agent: composer
+    input:
+      message: $event.message
+      intent: $router
+      docs: $knowledge.docs
+      tone: $tone.tone
+      tone_rationale: $tone.rationale
+      policy: $policy
+
+emit:
+  draft: $composer.text
+  citations: $composer.citations
+  policy: $policy
+  tone: $tone

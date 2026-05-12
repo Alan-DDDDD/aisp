@@ -1,0 +1,9 @@
+{
+  "id": "hr",
+  "display_name": "人力資源",
+  "description": "員工政策、福利、請假、薪資、勞健保",
+  "default_kb": "faq",
+  "color": "#10b981",
+  "icon": "HR",
+  "allowed_categories": ["hr", "general"]
+}

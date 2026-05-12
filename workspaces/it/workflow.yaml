@@ -1,0 +1,39 @@
+id: it_default_v2
+workspace: it
+description: IT 4-step — Router → Knowledge + TicketDecision（並行）→ Composer
+trigger: on_user_message
+
+steps:
+  - id: router
+    agent: router
+    input:
+      message: $event.message
+      history: $context.history
+
+  - id: knowledge
+    agent: knowledge
+    input:
+      query: $event.message
+      workspace_id: $context.workspace_id
+      kb_name: faq
+      top_k: 5
+
+  - id: ticket_decision
+    agent: ticket_decision
+    input:
+      message: $event.message
+      intent: $router
+
+  - id: composer
+    agent: composer
+    input:
+      message: $event.message
+      intent: $router
+      docs: $knowledge.docs
+      tone: direct
+      ticket: $ticket_decision
+
+emit:
+  draft: $composer.text
+  citations: $composer.citations
+  ticket: $ticket_decision

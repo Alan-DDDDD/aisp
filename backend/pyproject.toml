@@ -1,0 +1,51 @@
+[project]
+name = "aisp-backend"
+version = "0.1.0"
+description = "Enterprise AI Agent Platform — backend"
+readme = "../README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "pydantic>=2.9",
+    "pydantic-settings>=2.6",
+    "sqlalchemy[asyncio]>=2.0.36",
+    "aiosqlite>=0.20",
+    "httpx>=0.27",
+    "pyyaml>=6.0",
+    "python-multipart>=0.0.20",
+    "truststore>=0.10",
+    "chromadb>=0.5",
+    "pypdf>=4.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "ruff>=0.7",
+    "httpx>=0.27",
+]
+# 升級成多語言 embedding 才需要 sentence-transformers（PyTorch 重）
+multilingual = [
+    "sentence-transformers>=3.3",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM"]
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]

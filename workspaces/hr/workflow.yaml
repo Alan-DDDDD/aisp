@@ -1,0 +1,40 @@
+id: hr_default_v2
+workspace: hr
+description: HR 4-step — Router → Knowledge + Tone（並行）→ Composer（同理優先）
+trigger: on_user_message
+
+steps:
+  - id: router
+    agent: router
+    input:
+      message: $event.message
+      history: $context.history
+
+  - id: knowledge
+    agent: knowledge
+    input:
+      query: $event.message
+      workspace_id: $context.workspace_id
+      kb_name: faq
+      top_k: 4
+
+  - id: tone
+    agent: tone
+    input:
+      message: $event.message
+      history: $context.history
+      intent: $router
+
+  - id: composer
+    agent: composer
+    input:
+      message: $event.message
+      intent: $router
+      docs: $knowledge.docs
+      tone: $tone.tone
+      tone_rationale: $tone.rationale
+
+emit:
+  draft: $composer.text
+  citations: $composer.citations
+  tone: $tone

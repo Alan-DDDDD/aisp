@@ -1,0 +1,9 @@
+{
+  "id": "it",
+  "display_name": "IT 支援",
+  "description": "VPN、密碼、軟體請領、印表機、系統權限",
+  "default_kb": "faq",
+  "color": "#f59e0b",
+  "icon": "IT",
+  "allowed_categories": ["it", "general"]
+}

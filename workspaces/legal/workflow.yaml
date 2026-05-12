@@ -1,0 +1,48 @@
+id: legal_default_v2
+workspace: legal
+description: 法務 5-step — Router → ClauseAnalyzer + Knowledge（並行）→ Risk → Composer
+trigger: on_user_message
+
+steps:
+  - id: router
+    agent: router
+    input:
+      message: $event.message
+      history: $context.history
+
+  - id: clause_analyzer
+    agent: clause_analyzer
+    input:
+      message: $event.message
+      history: $context.history
+
+  - id: knowledge
+    agent: knowledge
+    input:
+      query: $event.message
+      workspace_id: $context.workspace_id
+      kb_name: faq
+      top_k: 3
+
+  - id: risk
+    agent: risk
+    input:
+      message: $event.message
+      intent: $router
+      docs: $knowledge.docs
+
+  - id: composer
+    agent: composer
+    input:
+      message: $event.message
+      intent: $router
+      docs: $knowledge.docs
+      tone: cautious
+      risk: $risk
+      clause_analysis: $clause_analyzer
+
+emit:
+  draft: $composer.text
+  citations: $composer.citations
+  risk: $risk
+  clause_analysis: $clause_analyzer

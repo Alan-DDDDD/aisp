@@ -1,0 +1,44 @@
+[
+  {
+    "title": "VPN 無法連線",
+    "question": "VPN 連不上怎麼辦？",
+    "answer": "請依序檢查：(1) 確認網路連線正常（能開外網）、(2) Cisco AnyConnect 用戶端版本是否為 5.x 以上（舊版會被伺服器拒絕）、(3) 試切換 VPN gateway：vpn1.company.com → vpn2.company.com、(4) 重新匯入憑證（路徑：HR 系統 > 自助服務 > IT 憑證下載）。仍無法連線請開 ticket，附 AnyConnect log（位置：%TEMP%\\\\AnyConnect\\\\AnyConnect.log）。",
+    "metadata": {"category": "it", "subcategory": "network"}
+  },
+  {
+    "title": "密碼重設",
+    "question": "我忘記 AD 密碼了怎麼辦？",
+    "answer": "本公司 AD 密碼自助重設流程：(1) 開瀏覽器到 https://passwd.company.com、(2) 輸入員工編號 + 手機驗證碼、(3) 設定新密碼（≥12 字，需含大小寫 + 數字 + 符號）。新密碼將同步至 Email、VPN、SSO 系統。若手機已更換無法收驗證，請帶員工證至 IT 櫃台辦理。",
+    "metadata": {"category": "it", "subcategory": "credential"}
+  },
+  {
+    "title": "印表機設定",
+    "question": "我要怎麼安裝公司印表機？",
+    "answer": "Windows：(1) 開「執行」(Win+R) 輸入 \\\\\\\\printer.company.local、(2) 找到部門印表機（命名：BLDG-FLOOR-ID，如 A-3-COLOR01）、(3) 雙擊安裝。macOS：系統偏好 > 印表機 > +「IP」標籤 > 通訊協定選 LPD、地址輸入 printer.company.local、佇列名稱為印表機 ID。預設皆為彩色雙面，可於印表機屬性調整。",
+    "metadata": {"category": "it", "subcategory": "hardware"}
+  },
+  {
+    "title": "軟體請領",
+    "question": "我要怎麼申請正版軟體（如 Adobe）？",
+    "answer": "本公司軟體採購流程：(1) 在 IT 服務台填寫「軟體請領單」、(2) 部門主管簽核、(3) IT 評估授權與成本、(4) 採購並完成安裝（一般 5–10 工作日）。常用軟體（Office 365、Visual Studio、JetBrains All-Pack、Adobe CC）已批量採購，部門主管核准後 1 個工作日內即可派發授權。",
+    "metadata": {"category": "it", "subcategory": "software"}
+  },
+  {
+    "title": "權限申請",
+    "question": "我要怎麼申請系統權限（如 GitLab、Confluence、AWS）？",
+    "answer": "請至「IAM 自助平台」(https://iam.company.com) 申請：(1) 選擇要申請的系統、(2) 選擇權限 role（read/write/admin）、(3) 填寫業務理由、(4) 直屬主管 + 系統 owner 雙重核准。一般核准時間 1–3 個工作日。AWS / 生產資料庫權限額外需要 CISO 核准，約 5–7 工作日。",
+    "metadata": {"category": "it", "subcategory": "permission"}
+  },
+  {
+    "title": "Email 容量已滿",
+    "question": "我的 Email 信箱滿了怎麼辦？",
+    "answer": "本公司預設信箱配額 50 GB。若收到容量警告：(1) 清空垃圾郵件與寄件備份、(2) 將大附件移至 OneDrive 並刪除原信、(3) 啟用「保留 12 個月後封存」自動清理。若仍不足，可向 IT 申請擴容（每次 +25GB，需主管核准）。緊急狀況可暫時改寄到 Email Forwarder 信箱。",
+    "metadata": {"category": "it", "subcategory": "email"}
+  },
+  {
+    "title": "公司筆電遺失",
+    "question": "公司筆電遺失或被偷了怎麼辦？",
+    "answer": "立即處理：(1) 第一時間電話通知 IT 安全中心（02-xxxx-xxxx 分機 9911，24 小時值班）、(2) IT 會立即遠端鎖定裝置並擦除（Intune MDM）、(3) 員工填寫「資產遺失通報單」、(4) 報警取得報案三聯單、(5) 部門主管簽核後申請替換。所有公司筆電皆啟用 BitLocker 加密，遺失資料外洩風險低。",
+    "metadata": {"category": "it", "subcategory": "security", "severity": "high"}
+  }
+]
