@@ -12,9 +12,21 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# Install python deps first（layer cache）
+# CPU-only PyTorch 先裝（避免 pip 把 CUDA 版的 torch 拉進來，省 ~1.8GB image）。
+# sentence-transformers 之後看到 torch 已存在就不會再 resolve 它。
+RUN pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu torch
+
+# Install python deps（layer cache）
 COPY backend/pyproject.toml backend/README.md* ./backend/
 RUN pip install --no-cache-dir -e ./backend
+
+# Pre-download embedding model 到 image 內，避免每次冷啟動花 30 秒抓 model。
+# HF Spaces free tier 沒 persistent disk，每次重啟都會用 image 內的快取。
+ARG EMBEDDING_MODEL=BAAI/bge-m3
+ENV SENTENCE_TRANSFORMERS_HOME=/app/.cache/sentence-transformers \
+    HF_HOME=/app/.cache/huggingface
+RUN mkdir -p /app/.cache && chmod -R 777 /app/.cache
+RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('${EMBEDDING_MODEL}')"
 
 # 應用碼 + seed workspaces
 COPY backend/app /app/backend/app
@@ -29,6 +41,7 @@ ENV PYTHONUNBUFFERED=1 \
     WORKSPACES_DIR=/app/workspaces \
     SEED_ON_BOOT=true \
     LOG_LEVEL=INFO \
+    EMBEDDING_MODEL=BAAI/bge-m3 \
     PORT=7860
 
 RUN mkdir -p /app/data && chmod 777 /app/data

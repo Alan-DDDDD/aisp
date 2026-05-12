@@ -42,6 +42,9 @@ backend/data/
 backend/.chroma/
 *.bak
 
+# Embedding / HF model cache（執行時下載的本機快取）
+.cache/
+
 # Internal docs — 個人 spec / 流程文件，不對外發布
 docs/
 
