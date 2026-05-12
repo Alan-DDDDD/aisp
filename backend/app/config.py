@@ -24,6 +24,11 @@ class Settings(BaseSettings):
     chroma_persist_dir: str = "./data/chroma"
     workspaces_dir: str = "./workspaces"
 
+    # Embedding 模型：
+    # - "chroma-default"：ChromaDB 內建 ONNX MiniLM-L6-v2（384 維，英文導向，輕）
+    # - sentence-transformers 任何 HF model id（如 "BAAI/bge-m3" 多語言、1024 維、重）
+    embedding_model: str = "BAAI/bge-m3"
+
     seed_on_boot: bool = True
     log_level: str = "INFO"
 

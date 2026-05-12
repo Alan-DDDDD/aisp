@@ -16,6 +16,7 @@ dependencies = [
     "truststore>=0.10",
     "chromadb>=0.5",
     "pypdf>=4.0",
+    "sentence-transformers>=3.3",
 ]
 
 [project.optional-dependencies]
@@ -24,10 +25,6 @@ dev = [
     "pytest-asyncio>=0.24",
     "ruff>=0.7",
     "httpx>=0.27",
-]
-# 升級成多語言 embedding 才需要 sentence-transformers（PyTorch 重）
-multilingual = [
-    "sentence-transformers>=3.3",
 ]
 
 [tool.ruff]

@@ -1,7 +1,8 @@
 """ChromaDB 封裝。
 
-Phase 3 用 Chroma 內建 DefaultEmbeddingFunction（ONNX all-MiniLM-L6-v2，~80MB 一次下載）。
-透過 settings.embedding_model 可以未來替換成多語言模型。
+Embedding 模型走 settings.embedding_model：
+- "chroma-default"：ChromaDB 內建 ONNX MiniLM-L6-v2（384 維，英文導向，輕）
+- 任何 HF model id（如 "BAAI/bge-m3"）：走 sentence-transformers，多語言能力強但 PyTorch 重
 """
 
 from __future__ import annotations
@@ -26,13 +27,22 @@ _embedding_fn = None
 
 
 def _get_embedding_fn():
-    """共用一份 embedding function，避免重複初始化 ONNX runtime。"""
+    """共用一份 embedding function，避免重複初始化模型。"""
     global _embedding_fn
     if _embedding_fn is None:
         with _lock:
             if _embedding_fn is None:
-                log.info("Initializing Chroma DefaultEmbeddingFunction (ONNX MiniLM-L6-v2)")
-                _embedding_fn = embedding_functions.DefaultEmbeddingFunction()
+                model = settings.embedding_model
+                if model in ("chroma-default", "default", ""):
+                    log.info("Initializing Chroma DefaultEmbeddingFunction (ONNX MiniLM-L6-v2)")
+                    _embedding_fn = embedding_functions.DefaultEmbeddingFunction()
+                else:
+                    log.info(
+                        "Initializing SentenceTransformerEmbeddingFunction (model=%s)", model
+                    )
+                    _embedding_fn = embedding_functions.SentenceTransformerEmbeddingFunction(
+                        model_name=model
+                    )
     return _embedding_fn
 
 
