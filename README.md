@@ -1,3 +1,13 @@
+---
+title: Aisp
+emoji: 👁
+colorFrom: green
+colorTo: yellow
+sdk: docker
+pinned: false
+short_description: AI web chat side project
+---
+
 # AISP — Enterprise AI Agent Platform
 
 > **Multi-Department Agentic Workspace.** 讓每個部門用 YAML 設定自己的 AI Agent 流程，
