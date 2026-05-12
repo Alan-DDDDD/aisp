@@ -42,7 +42,7 @@ export function getAdminWorkspace(id) {
 }
 
 export function getWorkflowYaml(id) {
-  return fetch(`/api/admin/workspaces/${id}/workflow`).then((r) => r.text())
+  return fetch(`${API_BASE}/api/admin/workspaces/${id}/workflow`).then((r) => r.text())
 }
 
 export function reloadWorkflow(id) {
