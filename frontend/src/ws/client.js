@@ -12,8 +12,14 @@ export class ChatSocket {
   }
 
   get url() {
+    // production：用 VITE_API_BASE（http→ws、https→wss）打到後端網域
+    // dev：fallback 到 location.host（讓 Vite dev proxy 接 /ws 到 backend）
+    const apiBase = import.meta.env.VITE_API_BASE
+    if (apiBase) {
+      const wsBase = apiBase.replace(/^http/, 'ws')
+      return `${wsBase}/ws/rooms/${this.roomId}`
+    }
     const proto = location.protocol === 'https:' ? 'wss' : 'ws'
-    // Vite dev server proxies /ws to backend
     return `${proto}://${location.host}/ws/rooms/${this.roomId}`
   }
 
