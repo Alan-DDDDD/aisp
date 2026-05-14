@@ -66,10 +66,10 @@ const stepTotal = computed(() => selectedTrace.value?.steps?.length || 0)
 </script>
 
 <template>
-  <div class="max-w-7xl mx-auto p-6">
-    <div class="mb-4 flex items-center justify-between">
-      <h1 class="text-2xl font-bold text-slate-800">Trace Explorer</h1>
-      <RouterLink to="/admin" class="text-xs text-slate-500 hover:underline">← Workspaces</RouterLink>
+  <div class="max-w-7xl mx-auto p-4 sm:p-6">
+    <div class="mb-4 flex items-center justify-between gap-3">
+      <h1 class="text-xl sm:text-2xl font-bold text-slate-800">Trace Explorer</h1>
+      <RouterLink to="/admin" class="text-xs text-slate-500 hover:underline shrink-0">← Workspaces</RouterLink>
     </div>
 
     <div class="flex items-center gap-2 mb-4 flex-wrap">
@@ -87,7 +87,7 @@ const stepTotal = computed(() => selectedTrace.value?.steps?.length || 0)
       >{{ ws.display_name }}</button>
     </div>
 
-    <div class="grid grid-cols-1 lg:grid-cols-5 gap-4">
+    <div class="grid grid-cols-1 lg:grid-cols-5 gap-3 sm:gap-4">
       <!-- List -->
       <div class="lg:col-span-2 bg-white border border-slate-200 rounded-xl overflow-hidden">
         <div class="px-3 py-2 text-xs text-slate-500 border-b border-slate-200 flex items-center justify-between">
@@ -97,7 +97,7 @@ const stepTotal = computed(() => selectedTrace.value?.steps?.length || 0)
         <div v-if="loadingList" class="p-6 text-sm text-slate-400">載入中…</div>
         <div v-else-if="error" class="p-6 text-sm text-rose-600">{{ error }}</div>
         <div v-else-if="!traces.length" class="p-6 text-sm text-slate-400">無 trace</div>
-        <div v-else class="divide-y divide-slate-100 max-h-[70vh] overflow-y-auto">
+        <div v-else class="divide-y divide-slate-100 max-h-[50vh] lg:max-h-[70vh] overflow-y-auto">
           <button
             v-for="t in traces"
             :key="t.id"
@@ -115,7 +115,7 @@ const stepTotal = computed(() => selectedTrace.value?.steps?.length || 0)
       </div>
 
       <!-- Detail -->
-      <div class="lg:col-span-3 bg-white border border-slate-200 rounded-xl p-4">
+      <div class="lg:col-span-3 bg-white border border-slate-200 rounded-xl p-3 sm:p-4 lg:max-h-[80vh] overflow-y-auto">
         <div v-if="!$route.query.id" class="text-sm text-slate-400 text-center py-12">
           從左側挑一筆 trace 查看 pipeline
         </div>

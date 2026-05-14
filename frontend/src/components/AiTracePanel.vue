@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import { useChatStore } from '../stores/chat'
 
+const emit = defineEmits(['close'])
 const store = useChatStore()
 const trace = computed(() => store.selectedTrace)
 
@@ -15,12 +16,19 @@ function formatJson(obj) {
 </script>
 
 <template>
-  <aside class="w-96 border-l border-slate-200 bg-white flex flex-col h-full">
-    <div class="px-4 py-3 border-b border-slate-200">
-      <div class="text-sm font-semibold text-slate-800">AI Pipeline Trace</div>
-      <div class="text-xs text-slate-500 mt-0.5">
-        點選聊天窗的 AI 訊息來檢視該次 pipeline
+  <aside class="w-full h-full border-l border-slate-200 bg-white flex flex-col">
+    <div class="px-4 py-3 border-b border-slate-200 flex items-start justify-between gap-2">
+      <div class="min-w-0">
+        <div class="text-sm font-semibold text-slate-800">AI Pipeline Trace</div>
+        <div class="text-xs text-slate-500 mt-0.5">
+          點選聊天窗的 AI 訊息來檢視該次 pipeline
+        </div>
       </div>
+      <button
+        @click="emit('close')"
+        class="lg:hidden text-slate-400 hover:text-slate-700 shrink-0 text-2xl leading-none px-2 -mr-1"
+        aria-label="關閉 Trace 面板"
+      >×</button>
     </div>
 
     <div class="flex-1 overflow-y-auto p-4">
