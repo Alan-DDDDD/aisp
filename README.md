@@ -272,8 +272,6 @@ AI_SP/
 │       ├── workflow.yaml       runtime 從這裡讀
 │       └── knowledge/faq.json
 ├── Dockerfile                  HF Spaces 部署用（CPU torch + 預下 bge-m3）
-├── PLAN.md                     原始 21 章完整規劃
-├── PROGRESS.md                 每個 Phase 的實作紀錄
 └── README.md                   本文件
 ```
 
