@@ -11,13 +11,13 @@ async function pick(id) {
 
 <template>
   <div class="flex items-center gap-2">
-    <span class="text-xs text-slate-500 mr-1">部門</span>
+    <span class="text-xs text-slate-500 mr-1 hidden sm:inline shrink-0">部門</span>
     <button
       v-for="ws in store.workspaces"
       :key="ws.id"
       @click="pick(ws.id)"
       :class="[
-        'px-3 py-1.5 rounded-lg text-sm font-medium transition flex items-center gap-2 border',
+        'px-2.5 sm:px-3 py-1.5 rounded-lg text-sm font-medium transition flex items-center gap-2 border whitespace-nowrap shrink-0',
         store.workspaceId === ws.id
           ? 'text-white border-transparent shadow-sm'
           : 'bg-white text-slate-700 border-slate-200 hover:border-slate-400',

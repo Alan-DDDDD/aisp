@@ -113,15 +113,15 @@ watch(() => props.id, load)
 </script>
 
 <template>
-  <div class="max-w-6xl mx-auto p-6 space-y-4">
+  <div class="max-w-6xl mx-auto p-4 sm:p-6 space-y-4">
     <div>
       <RouterLink to="/admin" class="text-xs text-slate-500 hover:underline">← Workspaces</RouterLink>
     </div>
 
     <div class="flex items-center justify-between gap-3">
-      <div>
-        <h1 class="text-2xl font-bold text-slate-800">Knowledge Base</h1>
-        <p class="text-sm text-slate-500">KB ID <span class="font-mono">{{ id }}</span></p>
+      <div class="min-w-0">
+        <h1 class="text-xl sm:text-2xl font-bold text-slate-800">Knowledge Base</h1>
+        <p class="text-sm text-slate-500 truncate">KB ID <span class="font-mono">{{ id }}</span></p>
       </div>
       <button
         v-if="!showAdd"
@@ -132,7 +132,7 @@ watch(() => props.id, load)
 
     <div
       v-if="showAdd"
-      class="bg-white border border-brand-200 rounded-xl p-5 space-y-3"
+      class="bg-white border border-brand-200 rounded-xl p-4 sm:p-5 space-y-3"
     >
       <div class="flex items-center justify-between">
         <h2 class="font-semibold text-slate-800">新增文件</h2>
@@ -186,7 +186,7 @@ watch(() => props.id, load)
           ></textarea>
         </label>
 
-        <div class="grid grid-cols-2 gap-2">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
           <label class="block">
             <span class="text-xs text-slate-600">source_type</span>
             <input
@@ -228,7 +228,7 @@ watch(() => props.id, load)
           </span>
         </label>
 
-        <div class="grid grid-cols-2 gap-2">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
           <label class="block">
             <span class="text-xs text-slate-600">標題（選填，預設用檔名）</span>
             <input

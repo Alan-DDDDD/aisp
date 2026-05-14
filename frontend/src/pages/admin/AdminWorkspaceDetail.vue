@@ -58,7 +58,7 @@ const workflowSteps = (yaml) => {
 </script>
 
 <template>
-  <div class="max-w-6xl mx-auto p-6 space-y-6">
+  <div class="max-w-6xl mx-auto p-4 sm:p-6 space-y-4 sm:space-y-6">
     <div>
       <RouterLink to="/admin" class="text-xs text-slate-500 hover:underline">← Workspaces</RouterLink>
     </div>
@@ -67,22 +67,22 @@ const workflowSteps = (yaml) => {
     <div v-else-if="error" class="text-rose-600 text-sm">{{ error }}</div>
 
     <template v-else-if="workspace">
-      <div class="flex items-center gap-4">
+      <div class="flex items-center gap-3 sm:gap-4">
         <div
-          class="w-14 h-14 rounded-xl flex items-center justify-center text-white font-bold text-lg shrink-0"
+          class="w-12 h-12 sm:w-14 sm:h-14 rounded-xl flex items-center justify-center text-white font-bold text-base sm:text-lg shrink-0"
           :style="{ backgroundColor: workspace.color }"
         >
           {{ workspace.icon || workspace.id.slice(0, 2).toUpperCase() }}
         </div>
         <div class="min-w-0">
-          <h1 class="text-2xl font-bold text-slate-800">{{ workspace.display_name }}</h1>
-          <p class="text-sm text-slate-500 mt-0.5">{{ workspace.description }}</p>
+          <h1 class="text-xl sm:text-2xl font-bold text-slate-800 truncate">{{ workspace.display_name }}</h1>
+          <p class="text-sm text-slate-500 mt-0.5 line-clamp-2">{{ workspace.description }}</p>
         </div>
       </div>
 
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
         <!-- Workflow -->
-        <section class="bg-white border border-slate-200 rounded-xl p-5">
+        <section class="bg-white border border-slate-200 rounded-xl p-4 sm:p-5">
           <div class="flex items-center justify-between mb-3">
             <h2 class="font-semibold text-slate-800">Workflow</h2>
             <button
@@ -109,7 +109,7 @@ const workflowSteps = (yaml) => {
         </section>
 
         <!-- Knowledge Bases -->
-        <section class="bg-white border border-slate-200 rounded-xl p-5">
+        <section class="bg-white border border-slate-200 rounded-xl p-4 sm:p-5">
           <h2 class="font-semibold text-slate-800 mb-3">Knowledge Bases</h2>
           <div v-if="!workspace.kbs.length" class="text-sm text-slate-400">尚無 KB</div>
           <div v-else class="space-y-2">
@@ -134,7 +134,7 @@ const workflowSteps = (yaml) => {
         </section>
 
         <!-- Recent Traces -->
-        <section class="bg-white border border-slate-200 rounded-xl p-5">
+        <section class="bg-white border border-slate-200 rounded-xl p-4 sm:p-5">
           <div class="flex items-center justify-between mb-3">
             <h2 class="font-semibold text-slate-800">Recent Traces</h2>
             <RouterLink to="/admin/traces" class="text-xs text-brand-600 hover:underline">全部 →</RouterLink>
@@ -156,7 +156,7 @@ const workflowSteps = (yaml) => {
         </section>
 
         <!-- Tickets -->
-        <section class="bg-white border border-slate-200 rounded-xl p-5">
+        <section class="bg-white border border-slate-200 rounded-xl p-4 sm:p-5">
           <h2 class="font-semibold text-slate-800 mb-3">Tickets</h2>
           <div v-if="!tickets.length" class="text-sm text-slate-400">尚無 ticket</div>
           <div v-else class="space-y-2">
