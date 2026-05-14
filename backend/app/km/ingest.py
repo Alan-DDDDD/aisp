@@ -17,7 +17,7 @@ from sqlalchemy.orm import selectinload
 
 from app.db.models import Chunk, Document, KnowledgeBase
 from app.km import store
-from app.km.chunker import chunk_faq_entry, chunk_text
+from app.km.chunker import ChunkResult, chunk_faq_entry, chunk_structured
 
 log = logging.getLogger(__name__)
 
@@ -105,23 +105,28 @@ async def upsert_document(
 
     # 切塊
     if is_faq_qa and question and answer:
-        chunk_texts = [chunk_faq_entry(question, answer)]
+        chunk_objs: list[ChunkResult] = [
+            ChunkResult(text=chunk_faq_entry(question, answer))
+        ]
     else:
-        chunk_texts = chunk_text(content) or [content]
+        chunk_objs = chunk_structured(content) or [ChunkResult(text=content)]
 
     # 寫進 Chroma + 同步 SQLite
     collection = store.get_or_create_collection(kb.collection_name)
     ids: list[str] = []
     metadatas: list[dict] = []
-    for i, text in enumerate(chunk_texts):
+    docs_for_chroma: list[str] = []
+    for i, c in enumerate(chunk_objs):
         chunk_id = uuid.uuid4().hex
         ids.append(chunk_id)
+        docs_for_chroma.append(c.text)
         meta = {
             "workspace_id": kb.workspace_id,
             "kb": kb.name,
             "doc_id": doc.id,
             "title": title,
             "chunk_index": i,
+            **c.structural_metadata,
             **(metadata or {}),
         }
         metadatas.append(meta)
@@ -130,14 +135,14 @@ async def upsert_document(
                 id=chunk_id,
                 document_id=doc.id,
                 chunk_index=i,
-                text=text,
+                text=c.text,
                 embedding_ref=chunk_id,
             )
         )
 
-    collection.upsert(ids=ids, documents=chunk_texts, metadatas=metadatas)
+    collection.upsert(ids=ids, documents=docs_for_chroma, metadatas=metadatas)
     await session.flush()
-    log.info("Upserted document %s (%d chunks) to %s", title, len(chunk_texts), kb.collection_name)
+    log.info("Upserted document %s (%d chunks) to %s", title, len(chunk_objs), kb.collection_name)
     return doc
 
 
