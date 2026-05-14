@@ -5,79 +5,103 @@ colorFrom: green
 colorTo: yellow
 sdk: docker
 pinned: false
-short_description: AI web chat side project
+short_description: Enterprise AI Agent Platform — multi-department agentic workspace
 ---
 
 # AISP — Enterprise AI Agent Platform
 
-> **Multi-Department Agentic Workspace.** 讓每個部門用 YAML 設定自己的 AI Agent 流程，
-> 配上自己的知識庫，跑在自己的聊天室裡。
+> **Multi-Department Agentic Workspace.**
+> 每個部門用 YAML 設定自己的 AI Agent 流程與知識庫，共用同一份後端 runtime。
+
+🔗 **Live demo (frontend)**: https://aisp-855.pages.dev
+🔧 **Backend runtime (HF Space)**: https://alan-ddddd-aisp.hf.space
+💻 **Source code**: https://github.com/Alan-DDDDD/aisp
 
 ---
 
-## What this is
+## 專案簡介
 
-不是 chatbot、不是 LangChain wrapper、不是 ChatGPT clone。
+AISP 是一個多部門 AI Agent 平台。將 **Knowledge、Agent、Workflow** 抽象成獨立的 domain object，讓不同部門 (workspace) 共用同一份 runtime，但因為設定不同而呈現完全不同的對話行為。
 
-是一個把 **Knowledge / Agent / Workflow** 抽成 domain object 的 **多部門 AI Agent 平台** — 同一份 runtime 跑出 4 個完全不同行為的部門：客服、HR、IT、法務。
-
-> **加新部門 = 寫 3 個檔案、重啟一次後端**，完全不用改 Python code。
-> 詳見 [`docs/add-a-new-department.md`](./docs/add-a-new-department.md)。
+專案內建 4 個示範部門：**客服、HR、IT Helpdesk、法務**。新增一個部門只需要建立 3 個檔案（`workspace.json` + `workflow.yaml` + 知識文件）並重啟後端，不需要修改任何 Python 程式碼。詳見 [`docs/add-a-new-department.md`](./docs/add-a-new-department.md)。
 
 ---
 
-## 為什麼值得看
+## 核心特性
 
-1. **Workflow runtime 從零自寫**，~200 行（resolver + spec + loader + runtime）。沒靠 LangGraph、CrewAI、AutoGen 撐起來。
-2. **依賴推導完全自動** — workflow YAML 沒有任何 `parallel:` 或 `depends_on:`，runtime 從 `$xxx` 引用反推 DAG，同層用 `asyncio.gather` 並行。
-3. **多租戶物理隔離** — Chroma collection `ws_<id>__<kb>` + retrieval `where: {workspace_id}` 雙重過濾，有單元測試守在那。
-4. **Provider 抽象到位** — `LLM_PROVIDER=mock|groq|...` 五秒切換，demo 翻車有 mock 兜底。
-5. **可觀測性是設計的一部分** — 每個 agent step 的 input / output / latency / model 都進 trace，admin UI 可重播任一次決策。
+1. **自寫 Workflow Runtime** — resolver + spec + loader + DAG executor 約 200 行，未依賴 LangGraph、CrewAI、AutoGen 等框架。
+2. **依賴關係自動推導** — Workflow YAML 不需要 `parallel:` 或 `depends_on:`；runtime 從步驟之間的 `$xxx` 引用反推 DAG，同層自動以 `asyncio.gather` 並行執行。
+3. **多租戶物理隔離** — ChromaDB collection 命名 `ws_<id>__<kb>`，retrieval 同時施加 `where: {workspace_id}` 過濾；單元測試保證隔離不破。
+4. **多語 RAG** — 預設 embedding 為 `BAAI/bge-m3`（1024 維、多語），中文知識庫命中率明顯優於 MiniLM；亦可切換回輕量 ONNX MiniLM。
+5. **LLM Provider 抽象** — 上層 agent 僅呼叫統一介面 `provider.chat(...)`；目前實作 Mock 與 Groq，並為 Ollama / Gemini / OpenRouter 預留接口。
+6. **內建可觀測性** — 每個 agent step 的輸入、輸出、延遲、所用模型皆寫入 trace；Admin UI 可逐步重播任一次決策。
+7. **PDF 文件攝取** — Admin UI 直接上傳 PDF，後端以 pypdf 解析、chunk、embed，多語文件可直接進入 KB。
+8. **Mobile-first RWD** — 桌機雙欄、平板與手機改為抽屜式 Trace 面板，任何裝置皆可操作。
 
 ---
 
-## 架構
+## Architecture
 
 ```
-+--------------+    +--------------+    +--------------------------+
-|  Chat UI     |    | Admin UI     |    | Workflow Runtime         |
-|  (Vue3)      |    | (Vue3)       |    | (resolver + DAG executor)|
-+------+-------+    +------+-------+    +-------------+------------+
-       |                   |                          |
-       +--- REST / WS -----+--- to FastAPI ---+       |
-                                              |       v
-                            +-----------------+----------------+
-                            | Agent Registry | Tool Registry  |
-                            +----------------+----------------+
-                            | LLM Provider Abstraction        |
-                            | (Mock / Groq / Ollama / ...)    |
-                            +---------------------------------+
-                            | KM Service (ChromaDB + ONNX     |
-                            |  MiniLM, per-workspace scoping) |
-                            +---------------------------------+
-                            | SQLite (workspaces, rooms,      |
-                            |  traces, tickets, kbs)          |
-                            +---------------------------------+
+        ┌─────────────────────┐   ┌─────────────────────┐
+        │   Chat UI (Vue 3)   │   │   Admin UI (Vue 3)  │
+        │   RWD + Pinia       │   │  Workspace / KB /   │
+        │   WebSocket client  │   │  Workflow / Traces  │
+        └──────────┬──────────┘   └──────────┬──────────┘
+                   │     REST / WebSocket    │
+                   └────────────┬────────────┘
+                                ▼
+                   ┌─────────────────────────┐
+                   │        FastAPI          │
+                   │   /chat  /admin/*  /ws  │
+                   └────────────┬────────────┘
+                                ▼
+                ┌────────────────────────────────┐
+                │      Workflow Runtime          │
+                │  YAML → spec → resolver →      │
+                │  DAG executor (asyncio.gather) │
+                └────────────────┬───────────────┘
+                                 ▼
+         ┌──────────────┬─────────────────┬──────────────┐
+         │ Agent Reg.   │   Tool Reg.     │ LLM Provider │
+         │  8 agents    │  kb_search      │ Mock / Groq  │
+         │              │  ticket_create  │  (others 預留)│
+         └──────────────┴────────┬────────┴──────────────┘
+                                 ▼
+                ┌────────────────────────────────┐
+                │  KM Service                    │
+                │  ChromaDB + bge-m3 (1024-d)    │
+                │  per-workspace collection      │
+                └────────────────┬───────────────┘
+                                 ▼
+                ┌────────────────────────────────┐
+                │  SQLite (async, SQLAlchemy 2)  │
+                │  workspaces / rooms /          │
+                │  messages / traces / tickets   │
+                └────────────────────────────────┘
 ```
 
-完整架構與設計細節：[`docs/architecture.md`](./docs/architecture.md)
+設計細節請參考 [`docs/architecture.md`](./docs/architecture.md) 與 [`docs/per-question-flow.md`](./docs/per-question-flow.md)。
 
 ---
 
 ## Tech Stack
 
-| 層 | 選用 | 為什麼 |
-|----|------|--------|
-| Frontend | Vue 3 + Vite + Pinia + Tailwind + vue-router | 開發快、企業感、無框架負擔 |
-| Routing | vue-router 4 + 懶載入 admin | chat 首屏輕、admin 按需載入 |
-| Backend | FastAPI + Pydantic v2 + SQLAlchemy 2.0 async | 業界主流、async 原生 |
-| DB | SQLite (dev) → Postgres-ready | 零成本起步可升 |
-| Vector DB | ChromaDB persistent + ONNX MiniLM | 內建 embedding，無 PyTorch 依賴 |
-| LLM | Provider 抽象：Mock / Groq / Ollama / Gemini | 五秒切換，demo 不翻車 |
-| Realtime | 原生 WebSocket | 不上 socket.io / Redis pub/sub |
-| 部署 | HF Spaces (Docker) + Cloudflare Pages | 零成本，[`docs/deployment.md`](./docs/deployment.md) |
+| 層 | 選用 | 說明 |
+|----|------|------|
+| Frontend | Vue 3 + Vite + Pinia + Tailwind + vue-router | Mobile-first RWD；Admin 路由懶載入 |
+| Backend | FastAPI + Pydantic v2 + SQLAlchemy 2.0 (async) | 業界主流的 async 組合 |
+| Storage | SQLite (async)；Postgres-ready | 零成本起步、可平滑升級 |
+| Vector DB | ChromaDB persistent + `BAAI/bge-m3` (sentence-transformers) | 1024 維多語 embedding；可透過 `EMBEDDING_MODEL=chroma-default` 切回輕量 ONNX MiniLM |
+| Doc Ingest | pypdf + 自寫 chunker | 支援 PDF、JSON、純文字三種輸入 |
+| LLM | Provider 抽象：Mock + Groq 已實作（Ollama / Gemini / OpenRouter 介面預留） | Mock 用於離線示範與測試 |
+| Realtime | 原生 WebSocket + 客端自動重連 | 不依賴 socket.io 或 Redis pub/sub |
+| Deployment | HF Spaces (Docker) + Cloudflare Pages | 詳見 [`docs/deployment.md`](./docs/deployment.md) |
 
-刻意不用：LangChain / LangGraph、CrewAI / AutoGen、Pinecone / Weaviate、Redis、K8s — 都會掩蓋平台價值或是過度設計。
+### 未採用的技術
+
+LangChain / LangGraph、CrewAI / AutoGen、Pinecone / Weaviate、Redis、Kubernetes。
+這些選項要嘛抽走平台層最有價值的設計決策，要嘛屬於目前規模下的過度設計。
 
 ---
 
@@ -93,12 +117,16 @@ python -m venv .venv
 .\.venv\Scripts\Activate.ps1     # Windows
 # source .venv/bin/activate      # macOS / Linux
 pip install -e .
-cp .env.example .env             # 並填入 GROQ_API_KEY（或保持 LLM_PROVIDER=mock）
+cp .env.example .env             # 填入 GROQ_API_KEY，或保持 LLM_PROVIDER=mock
 uvicorn app.main:app --port 8000
 ```
 
-啟動 log 應該看到：
+> 首次啟動會下載 bge-m3 模型 (~2 GB)。
+> 若僅需英文場景或希望縮減體積，可在 `.env` 設定 `EMBEDDING_MODEL=chroma-default`，改用 Chroma 內建的 ONNX MiniLM（384 維、無 PyTorch 依賴）。
+
+啟動 log 範例：
 ```
+Initializing SentenceTransformerEmbeddingFunction (model=BAAI/bge-m3)
 Registered tools: ['kb_search', 'ticket_create']
 Registered default agents: ['router', 'knowledge', 'policy', 'tone', 'risk', 'composer', 'ticket_decision', 'clause_analyzer']
 Seeded cs/faq with 15 documents
@@ -106,32 +134,36 @@ Preloaded 4 workflows: ['cs', 'hr', 'it', 'legal']
 Application startup complete.
 ```
 
-驗證：`curl http://localhost:8000/health`
+健康檢查：`curl http://localhost:8000/health`
 
 ### 2. Frontend
 
 ```bash
 cd frontend
 npm install
-# 若 default registry 被擋：npm install --registry https://registry.npmmirror.com
 npm run dev
 ```
 
-打開 http://localhost:5173 → 頂部點 4 個彩色按鈕切部門 → 問各自的問題：
+開啟 http://localhost:5173 後，點選頂部的部門按鈕切換 workspace，並嘗試各部門的示範問題：
 
-- 客服：「**70 歲可以申請車貸嗎？**」
-- HR：「**我可以休幾天特休？**」
-- IT：「**我的公司筆電遺失了**」（觸發自動開單）
-- 法務：「**怎麼簽 NDA？**」
+| 部門 | 示範問題 |
+|------|----------|
+| 客服 | 70 歲可以申請車貸嗎？ |
+| HR | 我可以休幾天特休？ |
+| IT Helpdesk | 我的公司筆電遺失了（會觸發自動開單） |
+| 法務 | 怎麼簽 NDA？ |
 
-點頂部 **Admin** 看 workspace 詳情、workflow YAML、KB chunks、trace explorer。
+點擊任一 AI 回覆即可開啟 Trace 面板，檢視該次提問背後所有 agent step 的輸入、輸出與延遲。
+進入頂部 **Admin** 可瀏覽 workspace 詳情、workflow YAML、知識庫內容、PDF 上傳、Trace 紀錄。
 
-### 3. 跑測試
+### 3. 執行測試
 
 ```bash
 cd backend
-pytest tests/                              # 23 passed
+pytest tests/
 ```
+
+涵蓋範圍：workflow resolver、workflow loader、router 解析、KM 多租戶隔離、agent 套件、end-to-end pipeline。
 
 ---
 
@@ -139,54 +171,40 @@ pytest tests/                              # 23 passed
 
 ```
 AI_SP/
-├── docs/                       架構、概念、部署、demo script
+├── docs/                       架構、概念、流程、部署、demo script
 ├── backend/                    FastAPI + AI orchestration
 │   └── app/
-│       ├── agents/             8 個 agent（router/knowledge/policy/tone/risk/composer/ticket_decision/clause_analyzer）
+│       ├── agents/             8 個 agent（router / knowledge / policy / tone / risk / composer / ticket_decision / clause_analyzer）
 │       ├── tools/              kb_search、ticket_create
 │       ├── providers/          LLM provider 抽象（mock + groq）
 │       ├── workflow/           spec / resolver / runtime / loader / bootstrap / seeder
-│       ├── km/                 ChromaDB store / ingest / retriever
+│       ├── km/                 ChromaDB store / ingest / retriever（bge-m3）
 │       ├── api/                chat + admin REST
 │       ├── ws/                 WebSocket hub
-│       ├── db/                 SQLAlchemy models
+│       ├── db/                 SQLAlchemy async models
 │       └── schemas/            Pydantic schemas
-├── frontend/                   Vue 3 + Vite + Pinia + Tailwind
+├── frontend/                   Vue 3 + Vite + Pinia + Tailwind（RWD）
 │   └── src/
 │       ├── pages/
-│       │   ├── ChatPage.vue
-│       │   └── admin/          AdminWorkspaces / AdminWorkspaceDetail / AdminKbDetail / AdminTraces
+│       │   ├── ChatPage.vue                 雙欄 / 抽屜
+│       │   └── admin/                       Workspaces / WorkspaceDetail / KbDetail / Traces
 │       ├── components/         WorkspaceSelector / ChatWindow / AiTracePanel
 │       ├── stores/             Pinia
-│       └── ws/                 WebSocket client (auto-reconnect)
+│       └── ws/                 WebSocket client（auto-reconnect）
 ├── workspaces/                 4 個部門：cs / hr / it / legal
 │   └── <id>/
 │       ├── workspace.json
-│       ├── workflow.yaml       <- runtime 從這讀
+│       ├── workflow.yaml       runtime 從這裡讀
 │       └── knowledge/faq.json
-├── Dockerfile                  HF Spaces 部署用
+├── Dockerfile                  HF Spaces 部署用（CPU torch + 預下 bge-m3）
 ├── PLAN.md                     原始 21 章完整規劃
 ├── PROGRESS.md                 每個 Phase 的實作紀錄
-└── README.md                   本檔
+└── README.md                   本文件
 ```
 
 ---
 
-## 文檔索引
-
-| 文件 | 內容 |
-|------|------|
-| [`PLAN.md`](./PLAN.md) | 原始 21 章完整規劃（決策脈絡） |
-| [`docs/architecture.md`](./docs/architecture.md) | 系統架構、三層分工、Domain model |
-| [`docs/concepts.md`](./docs/concepts.md) | 名詞表（對外講法 vs 內部實作） |
-| [`docs/add-a-new-department.md`](./docs/add-a-new-department.md) | 5 分鐘加新部門教學 |
-| [`docs/deployment.md`](./docs/deployment.md) | HF Spaces + Cloudflare Pages 部署 |
-| [`docs/demo-script.md`](./docs/demo-script.md) | 5 分鐘面試 demo 逐步腳本 |
-| [`PROGRESS.md`](./PROGRESS.md) | 每個 Phase 的實作與驗收細節 |
-
----
-
-## 開發狀態
+## 開發進度
 
 | Phase | 內容 | 狀態 |
 |-------|------|------|
@@ -194,9 +212,12 @@ AI_SP/
 | 2 | LLM Provider 抽象 + Groq | ✅ |
 | 3 | KM 基礎 + Knowledge Agent | ✅ |
 | 4 | Workspace + 4 部門 seed | ✅ |
-| 5 | Workflow as Config (YAML) — **平台「成立」的一刻** | ✅ |
-| 6 | 完整 Agent 套件（Policy/Tone/Risk/TicketDecision/ClauseAnalyzer）+ Tools | ✅ |
-| 7 | Admin UI（5 頁面 + 7 API） | ✅ |
+| 5 | Workflow as Config (YAML) — 平台組合能力建立 | ✅ |
+| 6 | 完整 Agent 套件（Policy / Tone / Risk / TicketDecision / ClauseAnalyzer）+ Tools | ✅ |
+| 7 | Admin UI（4 頁面 + REST API + PDF 上傳） | ✅ |
 | 8 | Docs / Dockerfile / Demo polish | ✅ |
+| 9 | 多語 embedding 升級（MiniLM → bge-m3） | ✅ |
+| 10 | 前端 mobile-first RWD | ✅ |
 
-`pytest`：23 passed。Frontend `npm run build`：~103 kB JS（gzip 44 kB）。
+**測試**：`pytest` 全部通過（7 個測試模組，涵蓋 KM 隔離、resolver、workflow loader、pipeline e2e）。
+**Bundle**：Frontend `npm run build` ~104 kB JS（gzip ~40 kB），Admin 頁面以路由懶載入分塊。
