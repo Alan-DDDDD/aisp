@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.db.models import Chunk, Document, KnowledgeBase
-from app.km import store
+from app.km import bm25_index, store
 from app.km.chunker import ChunkResult, chunk_faq_entry, chunk_structured
 
 log = logging.getLogger(__name__)
@@ -141,6 +141,7 @@ async def upsert_document(
         )
 
     collection.upsert(ids=ids, documents=docs_for_chroma, metadatas=metadatas)
+    bm25_index.invalidate(kb.collection_name)  # 下次 BM25 查詢時重建
     await session.flush()
     log.info("Upserted document %s (%d chunks) to %s", title, len(chunk_objs), kb.collection_name)
     return doc
@@ -154,6 +155,7 @@ async def _delete_chunks_from_chroma(kb: KnowledgeBase, ids: list[str]) -> None:
         collection.delete(ids=ids)
     except Exception as e:  # noqa: BLE001
         log.warning("Chroma delete failed (%s): %s", kb.collection_name, e)
+    bm25_index.invalidate(kb.collection_name)
 
 
 async def ingest_faq_json(

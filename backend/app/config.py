@@ -35,6 +35,21 @@ class Settings(BaseSettings):
     # Composer：低於此分數的 retrieval doc 視為與問題無關，不傳給 LLM、不放 citation
     composer_min_doc_score: float = 0.45
 
+    # Retrieval pipeline
+    # - "dense"：只走 ChromaDB embedding cosine
+    # - "bm25"：只走 BM25 關鍵字
+    # - "hybrid"（預設）：兩者並跑、用 RRF 融合
+    retrieval_mode: str = "hybrid"
+    retrieval_top_k_dense: int = 20      # 融合前 dense 候選數
+    retrieval_top_k_bm25: int = 20       # 融合前 BM25 候選數
+    hybrid_rrf_k: int = 60               # RRF 標準 k 值
+    bm25_only_default_score: float = 0.5  # BM25-only hit 沒有 cosine 時的 placeholder
+
+    # Reranker：留空 = 不啟用；典型值 "BAAI/bge-reranker-v2-m3"
+    # HF Spaces 免費版資源緊，預設關閉；本機跑 eval 可開
+    rerank_model: str = ""
+    rerank_top_n: int = 5                # 重排後保留幾筆
+
     allowed_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
 
     @property

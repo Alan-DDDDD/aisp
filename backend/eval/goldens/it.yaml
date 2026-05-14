@@ -1,0 +1,40 @@
+workspace_id: it
+kb_name: faq
+description: IT Helpdesk — 網路、密碼、印表機、安全事件
+
+queries:
+  - q: "VPN 連不上"
+    expected_titles: ["VPN 無法連線"]
+
+  - q: "AnyConnect 出錯"
+    expected_titles: ["VPN 無法連線"]
+
+  - q: "AD 密碼忘了"
+    expected_titles: ["密碼重設"]
+
+  - q: "重設密碼"
+    expected_titles: ["密碼重設"]
+
+  - q: "怎麼裝印表機"
+    expected_titles: ["印表機設定"]
+
+  - q: "我要申請 Adobe 軟體"
+    expected_titles: ["軟體請領"]
+
+  - q: "申請 AWS 權限"
+    expected_titles: ["權限申請"]
+
+  - q: "我的 mailbox 滿了"
+    expected_titles: ["Email 容量已滿"]
+
+  - q: "信箱容量不夠用"
+    expected_titles: ["Email 容量已滿"]
+
+  - q: "公司筆電不見了"
+    expected_titles: ["公司筆電遺失"]
+
+  - q: "電腦被偷"
+    expected_titles: ["公司筆電遺失"]
+
+  - q: "BitLocker 加密"
+    expected_titles: ["公司筆電遺失"]

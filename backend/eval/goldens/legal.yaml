@@ -1,0 +1,43 @@
+workspace_id: legal
+kb_name: faq
+description: 法務 — NDA、合約、個資、雇傭條款
+
+queries:
+  - q: "簽 NDA 流程"
+    expected_titles: ["NDA 簽署流程"]
+
+  - q: "保密合約怎麼跑"
+    expected_titles: ["NDA 簽署流程"]
+
+  - q: "損害賠償上限多少"
+    expected_titles: ["標準合約條款 — 損害賠償上限"]
+
+  - q: "liability cap"
+    expected_titles: ["標準合約條款 — 損害賠償上限"]
+
+  - q: "個資處理規定"
+    expected_titles: ["個資處理合規"]
+
+  - q: "GDPR 與個資法"
+    expected_titles: ["個資處理合規"]
+
+  - q: "合約審閱要多久"
+    expected_titles: ["合約審閱時效"]
+
+  - q: "離職要提前幾天通知"
+    expected_titles: ["雇傭合約離職條款"]
+
+  - q: "勞基法第 16 條"
+    expected_titles: ["雇傭合約離職條款"]
+
+  - q: "員工開發的程式 IP 歸誰"
+    expected_titles: ["智慧財產權歸屬"]
+
+  - q: "智財權"
+    expected_titles: ["智慧財產權歸屬"]
+
+  - q: "誰可以代表公司簽合約"
+    expected_titles: ["簽約授權層級"]
+
+  - q: "簽約金額授權"
+    expected_titles: ["簽約授權層級"]

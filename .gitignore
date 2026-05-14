@@ -45,8 +45,15 @@ backend/.chroma/
 # Embedding / HF model cache（執行時下載的本機快取）
 .cache/
 
-# Internal docs — 個人 spec / 流程文件，不對外發布
-docs/
+# Internal docs — 個人 spec / 流程文件，預設不公開
+# 用 docs/* 而非 docs/ 才能在內層做白名單例外
+docs/*
+# 例外：對外公開的 AI / RAG 設計與評估文件
+!docs/eval-report.md
+!docs/ai-design-decisions.md
+
+# Retrieval eval 跑出來的暫存資料（重跑可重生）
+backend/.eval-data/
 
 # Claude Code 本機個人設定（含絕對路徑、permission allowlist）
 .claude/settings.local.json

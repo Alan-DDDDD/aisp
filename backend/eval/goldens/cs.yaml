@@ -1,0 +1,52 @@
+workspace_id: cs
+kb_name: faq
+description: 客服部門 — 貸款、利率、客訴等
+
+queries:
+  - q: "70歲老人家可以辦車貸嗎"
+    expected_titles: ["車貸高齡客戶處理"]
+
+  - q: "高齡申貸的規定"
+    expected_titles: ["車貸高齡客戶處理"]
+
+  - q: "信貸最多可以借幾百萬"
+    expected_titles: ["信貸額度上限"]
+
+  - q: "我可以借多少錢的信貸"
+    expected_titles: ["信貸額度上限"]
+
+  - q: "DBR 22 倍是什麼意思"
+    expected_titles: ["信貸額度上限"]
+
+  - q: "信貸利率多少"
+    expected_titles: ["信貸利率區間"]
+
+  - q: "車貸的年利率"
+    expected_titles: ["車貸利率區間"]
+
+  - q: "申請貸款要準備什麼"
+    expected_titles: ["貸款申請需要文件"]
+
+  - q: "對保可以叫別人代簽嗎"
+    expected_titles: ["貸款對保程序"]
+
+  - q: "信用評分怎麼查"
+    expected_titles: ["信用評分查詢"]
+
+  - q: "貸款下來要多久"
+    expected_titles: ["貸款撥款時間"]
+
+  - q: "提早還錢會被收違約金嗎"
+    expected_titles: ["貸款提前清償"]
+
+  - q: "怎麼客訴"
+    expected_titles: ["客訴管道"]
+
+  - q: "我的貸款被拒絕了"
+    expected_titles: ["貸款被拒絕的常見原因"]
+
+  - q: "薪轉戶有什麼好處"
+    expected_titles: ["薪轉戶優惠"]
+
+  - q: "外國人能不能申請信貸"
+    expected_titles: ["外籍人士申貸"]
