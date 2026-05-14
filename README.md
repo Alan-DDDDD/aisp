@@ -5,7 +5,7 @@ colorFrom: green
 colorTo: yellow
 sdk: docker
 pinned: false
-short_description: Enterprise AI Agent Platform — multi-department agentic workspace
+short_description: Enterprise AI Agent platform with YAML workflows
 ---
 
 # AISP — Enterprise AI Agent Platform
