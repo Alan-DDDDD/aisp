@@ -1,0 +1,40 @@
+workspace_id: hr
+kb_name: faq
+description: HR 部門 — 假別、薪資、健保、福利
+
+queries:
+  - q: "我可以休幾天特休"
+    expected_titles: ["特休天數計算"]
+
+  - q: "勞基法第 38 條特休"
+    expected_titles: ["特休天數計算"]
+
+  - q: "今年特休沒休完怎麼辦"
+    expected_titles: ["特休未休結算"]
+
+  - q: "請病假需要看診紀錄嗎"
+    expected_titles: ["請病假流程"]
+
+  - q: "薪水幾號發"
+    expected_titles: ["薪資發放日"]
+
+  - q: "勞健保怎麼算"
+    expected_titles: ["勞健保投保"]
+
+  - q: "公司健檢補助"
+    expected_titles: ["員工健檢"]
+
+  - q: "申請在職證明"
+    expected_titles: ["在職證明申請"]
+
+  - q: "員工旅遊有沒有補助"
+    expected_titles: ["員工旅遊補助"]
+
+  - q: "生日假"
+    expected_titles: ["特休天數計算"]
+
+  - q: "Birthday Leave 怎麼休"
+    expected_titles: ["特休天數計算"]
+
+  - q: "病假超過 30 天還有薪水嗎"
+    expected_titles: ["請病假流程"]
