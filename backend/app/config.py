@@ -50,6 +50,10 @@ class Settings(BaseSettings):
     rerank_model: str = ""
     rerank_top_n: int = 5                # 重排後保留幾筆
 
+    # Groq 429 / 5xx 退避重試
+    groq_max_attempts: int = 3           # 含首次共 3 次
+    groq_max_retry_delay_s: float = 15.0  # 單次 sleep 上限，避免卡太久
+
     allowed_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
 
     @property
