@@ -20,13 +20,15 @@ RUN pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu 
 COPY backend/pyproject.toml backend/README.md* ./backend/
 RUN pip install --no-cache-dir -e ./backend
 
-# Pre-download embedding model 到 image 內，避免每次冷啟動花 30 秒抓 model。
+# Pre-download embedding 與 reranker 模型到 image 內，避免每次冷啟動花時間抓 model。
 # HF Spaces free tier 沒 persistent disk，每次重啟都會用 image 內的快取。
 ARG EMBEDDING_MODEL=BAAI/bge-m3
+ARG RERANK_MODEL=BAAI/bge-reranker-v2-m3
 ENV SENTENCE_TRANSFORMERS_HOME=/app/.cache/sentence-transformers \
     HF_HOME=/app/.cache/huggingface
 RUN mkdir -p /app/.cache && chmod -R 777 /app/.cache
 RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('${EMBEDDING_MODEL}')"
+RUN python -c "from sentence_transformers import CrossEncoder; CrossEncoder('${RERANK_MODEL}')"
 
 # 應用碼 + seed workspaces
 COPY backend/app /app/backend/app
@@ -42,6 +44,7 @@ ENV PYTHONUNBUFFERED=1 \
     SEED_ON_BOOT=true \
     LOG_LEVEL=INFO \
     EMBEDDING_MODEL=BAAI/bge-m3 \
+    RERANK_MODEL=BAAI/bge-reranker-v2-m3 \
     PORT=7860
 
 RUN mkdir -p /app/data && chmod 777 /app/data
