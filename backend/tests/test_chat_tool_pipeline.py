@@ -147,7 +147,8 @@ async def test_tool_hit_passes_result_to_composer(_bootstrap_with_tool):
     assert "composer" in step_ids
     assert all(s.error is None for s in result.steps)
 
-    # composer 的 system prompt 確實含 tool_result
+    # composer 的 system prompt 含 [TOOL_RESULT] 區塊與 tool_id / output
+    assert "[TOOL_RESULT]" in composer.last_system
     assert "celsius_to_fahrenheit" in composer.last_system
     assert "89.6" in composer.last_system
     # 而且不是 fallback「沒有相關資訊」訊息
@@ -171,7 +172,9 @@ async def test_no_tool_falls_through_to_composer(_bootstrap_with_tool):
 
     # 用 `工具結果（` 帶括號當 marker — composer prompt 守則本身會提到「工具結果」
     # 但只有 _build_context 寫 tool 區塊時才會用 `工具結果（{tool_id}）` 這個格式
-    assert "工具結果（" not in composer.last_system
+    # 用閉合 tag 當 marker — 只會出現在 _build_context 實際注入的 block，
+    # 不會出現在 system prompt 的規則文字中（規則只提開頭 tag）
+    assert "[/TOOL_RESULT]" not in composer.last_system
     # emit.tool 仍會有 — 給前端 badge / debug 用
     assert result.emit["tool"]["skipped_reason"] == "no_tool_needed"
 
@@ -198,4 +201,6 @@ async def test_tool_with_error_doesnt_break_pipeline(_bootstrap_with_tool):
     composer_step = next(s for s in result.steps if s.step_id == "composer")
     assert composer_step.error is None  # composer 仍正常產出
     # tool_called 有值但 tool_result 是 None — composer 應該忽略（不寫 tool 區塊）
-    assert "工具結果（" not in composer.last_system
+    # 用閉合 tag 當 marker — 只會出現在 _build_context 實際注入的 block，
+    # 不會出現在 system prompt 的規則文字中（規則只提開頭 tag）
+    assert "[/TOOL_RESULT]" not in composer.last_system
