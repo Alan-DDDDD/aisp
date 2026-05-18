@@ -1,6 +1,6 @@
 id: cs_default_v2
 workspace: cs
-description: 客服 5-step — Router → Knowledge → Policy + Tone（並行）→ Composer
+description: 客服 6-step — Router → (Tool / Knowledge / Policy / Tone 並行) → Composer
 trigger: on_user_message
 
 steps:
@@ -9,6 +9,14 @@ steps:
     input:
       message: $event.message
       history: $context.history
+
+  # TA4：tool_agent 跟 knowledge / policy / tone 同層並行（都只依賴 router）
+  # tool_agent 沒命中時 tool_result=null，composer 走原本 RAG 流程
+  - id: tool_agent
+    agent: tool_agent
+    input:
+      message: $event.message
+      intent: $router
 
   - id: knowledge
     agent: knowledge
@@ -41,9 +49,12 @@ steps:
       tone: $tone.tone
       tone_rationale: $tone.rationale
       policy: $policy
+      tool_called: $tool_agent.tool_called
+      tool_result: $tool_agent.tool_result
 
 emit:
   draft: $composer.text
   citations: $composer.citations
   policy: $policy
   tone: $tone
+  tool: $tool_agent
