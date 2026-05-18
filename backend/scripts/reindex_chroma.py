@@ -90,7 +90,7 @@ async def main(filter_workspaces: list[str] | None = None) -> None:
             label = f"{kb.workspace_id}/{kb.name}"
             print(f"\nreindexing {label} (collection={kb.collection_name})...")
             docs, chunks = await reindex_kb(session, kb)
-            print(f"  ✓ {label}: {docs} docs / {chunks} chunks reindexed")
+            print(f"  [OK] {label}: {docs} docs / {chunks} chunks reindexed")
 
     print("\n== 驗證 ==")
     for kb in kbs:
