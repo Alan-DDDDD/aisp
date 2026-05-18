@@ -35,6 +35,23 @@ SYSTEM_PROMPT = """你是 tool spec enricher。輸入是一份不完整的 tool 
 4. side_effect：判斷 read_only（純查詢）/ write_local（寫自家 DB）/ write_external（外呼 API / 寄信）
 5. tags：1-3 個分類字串，如 ["customer", "orders"]
 
+【關於 examples 的數字 — 違反等同 spec 錯誤】
+
+如果工具是「計算 / 轉換 / 公式」類（單位轉換、數學運算、利率/匯率/百分比、
+日期計算等任何 output 由 input 透過確定式公式推導的場景）：
+
+A. **先在腦中寫下公式**，例如「ping = m² / 3.305785」、「F = C * 9/5 + 32」
+B. **再對每個 example.input 用公式逐一算 output**，把結果填進 example.output
+C. **特別小心轉換方向**：常見錯誤是把因子算反
+   - 例：1 坪 = 3.305785 m² → 1 m² = 0.3025 坪（不是 3.305785）
+   - 例：1 inch = 2.54 cm → 1 cm = 0.3937 inch（不是 2.54）
+   - 例：1 mile = 1.609 km → 1 km = 0.621 mile（不是 1.609）
+D. **驗算一次**：把你算出的 output 套回去看 input 是否合理
+E. 數字小數點可保留 4-6 位即可
+
+若有任何一個 example 的數字「看起來只是把因子 copy 過去」（例如 input=100、
+output=3.305 — 100 的因子怎麼會剛好是 3.305），那一定是搞錯方向，要重算。
+
 務必輸出**嚴格 JSON**，不要 markdown 圍欄。範例 schema：
 {
   "name": "get_customer_orders_recent",
@@ -58,6 +75,17 @@ SYSTEM_PROMPT = """你是 tool spec enricher。輸入是一份不完整的 tool 
   ],
   "side_effect": "read_only",
   "tags": ["customer", "orders"]
+}
+
+計算類範例（攝氏轉華氏，注意 example.output 用 F = C * 9/5 + 32 算過）：
+{
+  "name": "celsius_to_fahrenheit",
+  "examples": [
+    {"scenario": "冰點", "input": {"celsius": 0},   "output": {"fahrenheit": 32.0}},
+    {"scenario": "體溫", "input": {"celsius": 37},  "output": {"fahrenheit": 98.6}},
+    {"scenario": "沸點", "input": {"celsius": 100}, "output": {"fahrenheit": 212.0}}
+  ],
+  ...
 }"""
 
 
