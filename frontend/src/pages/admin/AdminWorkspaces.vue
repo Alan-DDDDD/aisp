@@ -58,11 +58,15 @@ onMounted(async () => {
       </RouterLink>
     </div>
 
-    <div class="mt-6 flex gap-3">
+    <div class="mt-6 flex gap-3 flex-wrap">
       <RouterLink
         to="/admin/traces"
         class="text-sm text-brand-600 hover:underline"
       >→ Trace Explorer</RouterLink>
+      <RouterLink
+        to="/admin/synthesis"
+        class="text-sm text-brand-600 hover:underline"
+      >→ Self-Extending Agent (Phase 6)</RouterLink>
     </div>
   </div>
 </template>
