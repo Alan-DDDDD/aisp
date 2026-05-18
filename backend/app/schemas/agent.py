@@ -128,3 +128,5 @@ class ToolAgentOutput(BaseModel):
     candidates: list[dict[str, Any]] = Field(default_factory=list)  # retrieval 觀測
     skipped_reason: str | None = None  # 沒呼叫的原因（觀測用，給 trace 看）
     error: str | None = None  # 呼叫過程出錯時的訊息
+    # TA2：gap_detector 偵測出的 GAP step（給 TA3 觸發 synthesis 用）
+    gap_specs: list[dict[str, Any]] = Field(default_factory=list)
