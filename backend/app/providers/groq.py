@@ -127,7 +127,7 @@ class GroqProvider(LLMProvider):
         messages.extend(req.messages)
 
         payload: dict = {
-            "model": self.default_model,
+            "model": req.model or self.default_model,
             "messages": messages,
             "temperature": req.temperature,
             "max_tokens": req.max_tokens,

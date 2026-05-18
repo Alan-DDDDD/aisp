@@ -14,6 +14,9 @@ class GenerationRequest(BaseModel):
     # 要求 provider 一併回傳 token-level logprobs（OpenAI-compatible logprobs.content）
     logprobs: bool = False
     top_logprobs: int = 0  # 每個 token 位置額外回多少個 alternatives（0=不要 alternatives）
+    # 角色導向 model override：None 時 provider 用自己的 default_model。
+    # Phase 6 起 planner / judge / code agent 會用不同 model（PLAN §22.4.5、§22.5.3）。
+    model: str | None = None
 
 
 class GenerationResponse(BaseModel):

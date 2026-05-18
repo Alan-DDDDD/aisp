@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func, select
@@ -27,7 +27,7 @@ router = APIRouter(prefix="/api", tags=["chat"])
 
 
 def _now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 @router.get("/workspaces", response_model=list[WorkspaceOut])

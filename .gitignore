@@ -42,6 +42,12 @@ backend/data/
 backend/.chroma/
 *.bak
 
+# Phase 6 runtime artifacts（生成工具的原始碼是 runtime 產物，重跑會重建）
+workspaces/generated_tools/
+backend/scripts/_demo_*.json
+backend/scripts/debug_tg_step*.py
+backend/scripts/debug_tg_markdown.py
+
 # Embedding / HF model cache（執行時下載的本機快取）
 .cache/
 

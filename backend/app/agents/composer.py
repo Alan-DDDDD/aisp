@@ -4,7 +4,6 @@ from app.providers.base import GenerationRequest, LLMProvider
 from app.schemas.agent import AgentContext, ComposerInput, ComposerOutput
 from app.workflow import workspace_registry
 
-
 SYSTEM_PROMPT = """你是一個企業客服 Composer agent。
 依據使用者訊息、上游 agent 提供的意圖、知識來源與語氣建議，
 撰寫專業、同理且具體的客服回覆。
