@@ -4,10 +4,14 @@
 這個 module **看不到 code generator 產出的 code**。Tests 從 spec 生，
 避免 LLM 在同一 context 同時看到 code + spec 時寫出「遷就 code 而非驗證 spec」的測試。
 
-測試案例三類：
+測試案例兩類（不再生 adversarial）：
 1. 必測：spec.examples 每一個都轉成一個 test case（assertion 對 output）
-2. Edge cases：空值、邊界、預期合理輸入但靠近邊界
-3. Adversarial：故意給 invalid input，預期拋特定 exception
+2. Edge cases：合法但接近邊界的輸入（最小有效值、空字串等）
+
+歷史背景：原本還有 adversarial 一類（給 invalid input 預期 raise），
+但 LLM 屢屢誤判 Pydantic 的 coercion 行為（例如 str "100" 給 float 欄位會被
+自動 coerce 不會 raise）→ 每次都自己寫掛 sandbox。價值（測 Pydantic 自身）
+本來就低，移除。
 """
 
 from __future__ import annotations
@@ -25,30 +29,28 @@ log = logging.getLogger(__name__)
 SYSTEM_PROMPT = """你是 pytest 測試產生器。你**看不到實作**，只看到 spec。
 你的任務：從 spec 出發，寫出能驗證實作正確性的 pytest 測試集。
 
-測試類型與規則：
+只生兩類測試（**任何其他類別一律不寫**）：
 
-1. **happy_path_*（必有）**：spec.examples 每個轉成一個，斷言輸出對應 example.output
-2. **edge_*（建議有 1-2 個）**：合法但接近邊界的輸入（例如最小有效值、空字串 fields）
-3. **adversarial_***：**只在以下兩種情況才寫，其他情況一律不要寫**：
-   a) **Missing required field**：spec.input_fields 內 required=true 且無 default 的欄位
-      → 寫 `with pytest.raises(ValidationError): Input()`
-   b) **Type mismatch**：傳明顯型別錯誤的值（例如 str 欄位傳 None / dict）
-      → 寫 `with pytest.raises(ValidationError): Input(field=<wrong_type>)`
+1. **happy_path_*（必有）**：spec.examples 每一個轉成一個 test，
+   斷言輸出 == example.output 的每個欄位
+2. **edge_*（建議 1-2 個）**：合法但接近邊界的輸入
+   （最小有效值、零值、空字串作為合法字串等）
 
-   **特別禁止**（這些是常見錯誤）：
-   - 對 `int` 欄位傳負數預期 raise → 負數是合法 int，不會 raise
-   - 對 `str` 欄位傳空字串預期 raise → 空字串是合法 str，不會 raise
-   - 對任何沒 `Field(gt=, lt=, min_length=...)` 約束的欄位「猜」會 raise
+**禁止項目**（即使聽起來很合理也別寫）：
+- 任何 `with pytest.raises(ValidationError)` / `TypeError` / `ValueError` 的測試
+- 任何「驗證 Pydantic 會拒絕某 input」的測試
+- 任何 `adversarial_*`、`invalid_*`、`error_*` 命名的測試
 
-   原則：spec 沒明確說會拒絕的值，就**不要寫測試斷言它會被拒絕**。
+原因：Pydantic v2 有 type coercion（"100" → 100.0 不會 raise）；
+spec 內沒明文約束的拒絕行為都是猜測，且這類測試的價值在「測 Pydantic 自身」
+而不是「測這個工具」，留給上游 schema 驗證即可。
 
 撰寫約束：
-- 假設 tool class 名稱用 PascalCase 加 "Tool" 結尾（例如 spec.name="get_customer_orders" → "GetCustomerOrdersTool"）
+- 假設 tool class 名稱用 PascalCase 加 "Tool" 結尾（spec.name="get_customer_orders" → "GetCustomerOrdersTool"）
 - 假設 input/output 模型用 PascalCase + "Input"/"Output" 結尾
 - 用 `import importlib; module = importlib.import_module("generated_tool")` 載入 SUT
-  （sandbox 會把 code 寫成 generated_tool.py 模組）
-- 每個 test 用 pytest.mark.asyncio
-- 用一個共用 fixture 取得 ctx：`from app.schemas.agent import AgentContext`
+- 每個 async test 用 `@pytest.mark.asyncio`
+- 用共用 fixture 取得 ctx：`from app.schemas.agent import AgentContext`
 
 輸出 plain Python，**不要包 markdown 圍欄**，**不要解釋**。
 
@@ -58,7 +60,6 @@ from __future__ import annotations
 
 import importlib
 import pytest
-from pydantic import ValidationError
 
 from app.schemas.agent import AgentContext
 
@@ -85,12 +86,6 @@ async def test_edge_days_one(ctx):
     tool = Tool()
     out = await tool.call(ctx, Input(customer_id="C-1", days=1))
     assert out.total >= 0
-
-
-@pytest.mark.asyncio
-async def test_adversarial_missing_required():
-    with pytest.raises(ValidationError):
-        Input()
 ```
 """
 
