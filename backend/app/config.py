@@ -91,6 +91,14 @@ class Settings(BaseSettings):
     # Generated tools 的程式碼存放目錄（相對 backend 啟動 cwd）
     generated_tools_dir: str = "../workspaces/generated_tools"
 
+    # ── TA3 — Chat auto-synthesis ──────────────────────────────────────
+    # 從 chat 觸發合成時，合成成功且 side_effect=read_only 是否自動 approve。
+    # True：demo 友善（user 一次對話內看到結果，合成 + 註冊 + 呼叫一氣呵成）
+    # False：所有 generated tool 一律走人類審核（prod 預設）
+    chat_auto_approve_read_only: bool = True
+    # 從 chat 觸發合成時，第一個 GAP 才做合成；多 gap_step 留將來
+    chat_synthesize_first_gap_only: bool = True
+
     allowed_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
 
     @property

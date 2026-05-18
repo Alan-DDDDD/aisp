@@ -1,16 +1,20 @@
-"""ToolAgent — TA2：用 gap_detector 拆 step + cascading 決策後再呼叫工具。
+"""ToolAgent — TA3：用 gap_detector 拆 step + 命中工具呼叫；GAP 時自動觸發合成。
 
 職責：
   1. 把 user message 餵 gap_detector：planner 拆 step → retrieval shortcut → judge
   2. 找第一個 USE step → LLM 推 args → 呼叫對應 tool
-  3. 沒 USE step 但有 GAP → 把 gap_specs 回給 output（TA3 用它觸發 synthesis）
+  3. 沒 USE 但有 GAP：
+     - 若有 orchestrator + approval_service + session_factory 注入 → 同步觸發合成
+     - read_only 工具且 chat_auto_approve_read_only=True → 自動 approve → 重跑找新工具
+     - 否則送審核，回 awaiting_approval 訊息
   4. 全部 no_tool_needed → 放行給下游 knowledge agent
 
 設計重點：
-- gap_detector 內部已做 cascading（shortcut_high/low → judge），這層不重做
-- 一次 chat 最多呼叫一個 tool（多 tool 串連 = U2 compose chain，留將來）
-- tool 呼叫失敗 / arg gen 失敗都不擋 pipeline，把 error 寫進 output
-- workspace scoping 委由 gap_detector 內部 retriever 處理
+- 合成是同步 + sync auto-approve → 一次對話就能看到結果（demo 友善）
+- prod 應把 chat_auto_approve_read_only=False，所有合成走 HITL
+- 一次 chat 最多 1 個 tool 呼叫 + 1 個合成觸發（不做 multi-gap）
+- 遞迴呼叫 self.run() 只發生在 auto-approve 後（registry 已多一個工具），
+  正常情況下二次呼叫會走 USE path 而非再次進入 GAP → 不會無限遞迴
 """
 
 from __future__ import annotations
@@ -22,10 +26,13 @@ from pydantic import ValidationError
 
 from app.agents._json_util import parse_json_loose
 from app.agents.base import BaseAgent
+from app.config import settings
 from app.providers.base import GenerationRequest, LLMProvider
 from app.schemas.agent import AgentContext, ToolAgentInput, ToolAgentOutput
+from app.synthesis.approval import ApprovalService
 from app.synthesis.gap_detector import GapDetector
-from app.synthesis.schemas import DecisionType
+from app.synthesis.orchestrator import SynthesisOrchestrator
+from app.synthesis.schemas import DecisionType, StepDecision, ToolSpec
 from app.synthesis.tool_retriever import ToolRetriever
 from app.tools import registry as tool_registry
 from app.tools.base import BaseTool
@@ -52,11 +59,26 @@ class ToolAgent(BaseAgent):
         provider: LLMProvider,
         retriever: ToolRetriever | None = None,
         gap_detector: GapDetector | None = None,
+        # TA3 — 可選注入合成 + 審核能力。三者要嘛都有，要嘛都無；
+        # 都無時行為退回 TA2（GAP 只 report，不合成）
+        orchestrator: SynthesisOrchestrator | None = None,
+        approval_service: ApprovalService | None = None,
+        session_factory: Any = None,  # Callable[[], AsyncContextManager[AsyncSession]]
     ) -> None:
         self.provider = provider
         if gap_detector is None:
             gap_detector = GapDetector(provider=provider, retriever=retriever)
         self.gap_detector = gap_detector
+        self.orchestrator = orchestrator
+        self.approval_service = approval_service
+        self.session_factory = session_factory
+
+    def _can_synthesize(self) -> bool:
+        return (
+            self.orchestrator is not None
+            and self.approval_service is not None
+            and self.session_factory is not None
+        )
 
     async def run(  # type: ignore[override]
         self, ctx: AgentContext, payload: ToolAgentInput
@@ -73,17 +95,12 @@ class ToolAgent(BaseAgent):
         )
 
         if use_step is None:
-            # 沒 USE — 看是否有 GAP（TA3 拿這個觸發合成）
             gap_steps = [
                 s for s in detection.steps if s.decision is DecisionType.GAP
             ]
             if gap_steps:
-                return ToolAgentOutput(
-                    candidates=cands_summary,
-                    skipped_reason="gap_detected",
-                    gap_specs=[
-                        s.gap_spec.model_dump() for s in gap_steps if s.gap_spec
-                    ],
+                return await self._handle_gap(
+                    ctx, payload, gap_steps, cands_summary
                 )
             return ToolAgentOutput(
                 candidates=cands_summary,
@@ -141,6 +158,120 @@ class ToolAgent(BaseAgent):
             tool_called=use_step.tool_id,
             tool_result=_as_dict(result),
             candidates=cands_summary,
+        )
+
+    async def _handle_gap(
+        self,
+        ctx: AgentContext,
+        payload: ToolAgentInput,
+        gap_steps: list[StepDecision],
+        cands_summary: list[dict[str, Any]],
+    ) -> ToolAgentOutput:
+        """GAP path：可合成就觸發，否則 report；auto_approve 條件成立則重跑找新 tool。"""
+        gap_specs_dump = [s.gap_spec.model_dump() for s in gap_steps if s.gap_spec]
+
+        # 沒注入合成能力 → 退回 TA2 行為（report only）
+        if not self._can_synthesize():
+            return ToolAgentOutput(
+                candidates=cands_summary,
+                skipped_reason="gap_detected",
+                gap_specs=gap_specs_dump,
+            )
+
+        # 合成第一個有效 gap_spec
+        first_with_spec = next((s for s in gap_steps if s.gap_spec is not None), None)
+        if first_with_spec is None or first_with_spec.gap_spec is None:
+            return ToolAgentOutput(
+                candidates=cands_summary,
+                skipped_reason="gap_detected_but_no_spec",
+                gap_specs=gap_specs_dump,
+            )
+
+        spec: ToolSpec = first_with_spec.gap_spec
+        try:
+            result = await self.orchestrator.synthesize(spec)  # type: ignore[union-attr]
+        except Exception as e:  # noqa: BLE001
+            log.exception("tool_agent: orchestrator.synthesize 失敗")
+            return ToolAgentOutput(
+                candidates=cands_summary,
+                skipped_reason=f"synthesis_exception:{e}",
+                gap_specs=gap_specs_dump,
+            )
+
+        async with self.session_factory() as session:  # type: ignore[misc]
+            try:
+                task_id = await self.approval_service.submit(  # type: ignore[union-attr]
+                    session,
+                    result=result,
+                    workspace_id=ctx.workspace_id,
+                    triggered_by_query=payload.message,
+                    triggered_by_user="chat",
+                    triggered_by_query_id=getattr(
+                        # 沒帶 query_id 也沒關係 — gap_detector 內部會生一個
+                        # 但這裡無法取得，省略
+                        None,
+                        "_unused",
+                        None,
+                    ),
+                )
+            except Exception as e:  # noqa: BLE001
+                log.exception("tool_agent: ApprovalService.submit 失敗")
+                return ToolAgentOutput(
+                    candidates=cands_summary,
+                    skipped_reason=f"submit_failed:{e}",
+                    gap_specs=gap_specs_dump,
+                )
+
+            new_tool_name = result.spec_enriched.name
+
+            if not result.success:
+                return ToolAgentOutput(
+                    candidates=cands_summary,
+                    skipped_reason=f"synthesis_failed:{result.error or 'unknown'}",
+                    gap_specs=gap_specs_dump,
+                )
+
+            is_safe = result.spec_enriched.side_effect == "read_only"
+            if not (settings.chat_auto_approve_read_only and is_safe):
+                # 走人類審核流程；本輪對話不執行
+                return ToolAgentOutput(
+                    candidates=cands_summary,
+                    skipped_reason=f"awaiting_approval:{new_tool_name}",
+                    gap_specs=gap_specs_dump,
+                )
+
+            try:
+                await self.approval_service.approve(  # type: ignore[union-attr]
+                    session, task_id, reviewer="auto-chat"
+                )
+            except Exception as e:  # noqa: BLE001
+                log.exception("tool_agent: auto-approve 失敗")
+                return ToolAgentOutput(
+                    candidates=cands_summary,
+                    skipped_reason=f"auto_approve_failed:{e}",
+                    gap_specs=gap_specs_dump,
+                )
+
+        # auto-approved + registered — 重跑一次找新工具
+        log.info(
+            "tool_agent: auto-synthesized %s for query %r — re-running detect",
+            new_tool_name,
+            payload.message[:60],
+        )
+        retry = await self.run(ctx, payload)
+        # 把「我們剛剛合成出來的」訊息層層帶上去；若 retry 沒命中新工具，
+        # 至少 trace 看得到合成有發生
+        if retry.tool_called == new_tool_name and retry.skipped_reason is None:
+            return retry
+        # 沒命中（極少見） — 把這個情況也露出去給 trace
+        retry_reason = retry.skipped_reason or "no_match_after_auto_approve"
+        return ToolAgentOutput(
+            tool_called=retry.tool_called,
+            tool_result=retry.tool_result,
+            candidates=retry.candidates,
+            skipped_reason=f"auto_approved_{new_tool_name}_but_{retry_reason}",
+            error=retry.error,
+            gap_specs=gap_specs_dump,
         )
 
     async def _generate_args(self, tool: BaseTool, message: str) -> dict[str, Any] | None:
