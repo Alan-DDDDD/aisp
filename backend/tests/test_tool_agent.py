@@ -1,14 +1,22 @@
-"""TA2 — ToolAgent 單元測試。
+"""TA3 — ToolAgent 單元測試（含合成路徑）。
 
 涵蓋路徑：
+  TA2：
   - 無 USE 也無 GAP（全 no_tool_needed）→ skipped_reason=no_tool_needed
-  - 只有 GAP → skipped_reason=gap_detected + gap_specs 帶值（給 TA3 用）
+  - 只有 GAP 但沒注入合成能力 → gap_detected + gap_specs 帶值
   - USE 但 registry 沒這 tool → tool_missing_from_registry
   - happy path：USE → arg gen → call → tool_result 含預期值
   - arg gen 回 _error → skipped_reason=arg_gen_missing
   - input validation 失敗 → skipped_reason=input_validation
   - tool.call 拋例外 → error 欄位帶錯誤訊息
   - arg gen 回不可 parse → arg_gen_unparseable
+  - multi-step 拿第一個 USE / USE 優先 GAP
+
+  TA3：
+  - GAP + 可合成 + read_only + auto_approve → 遞迴 USE 新工具
+  - GAP + 可合成 + write_local → awaiting_approval（不自動 approve）
+  - GAP + 可合成 + 合成失敗 → synthesis_failed
+  - GAP + 可合成 + auto_approve 設 False → awaiting_approval
 
 不直接測 gap_detector cascading（它有自己 18 個測試）— 這裡注入 FakeGapDetector
 直接拿到 canned GapDetectionResult。
@@ -21,9 +29,13 @@ from pydantic import BaseModel
 
 from app.agents.tool_agent import ToolAgent
 from app.schemas.agent import AgentContext, ToolAgentInput
+from app.synthesis.orchestrator import SynthesisResult
 from app.synthesis.schemas import (
+    ConcreteExample,
     DecisionRoute,
     DecisionType,
+    EnrichedToolSpec,
+    FieldSpec,
     GapDetectionResult,
     PlannerStep,
     StepDecision,
@@ -73,13 +85,110 @@ class _BoomTool(BaseTool):
 
 
 class FakeGapDetector:
-    """duck-typed gap_detector：直接吐 canned GapDetectionResult。"""
+    """duck-typed gap_detector：吐 canned 結果。
 
-    def __init__(self, result: GapDetectionResult) -> None:
-        self.result = result
+    可傳單一 result（每次 detect 都回同一個）或 list（每次依序消費）。
+    """
+
+    def __init__(self, result):
+        if isinstance(result, list):
+            self._results = list(result)
+            self._single = None
+        else:
+            self._results = None
+            self._single = result
 
     async def detect(self, query: str, workspace_id: str = "default", *, session=None):
+        if self._single is not None:
+            return self._single
+        if not self._results:
+            return _result([])
+        return self._results.pop(0)
+
+
+class FakeOrchestrator:
+    """產出指定的 SynthesisResult；記錄被呼叫的 spec。"""
+
+    def __init__(self, result: SynthesisResult) -> None:
+        self.result = result
+        self.calls: list[ToolSpec] = []
+
+    async def synthesize(self, spec: ToolSpec) -> SynthesisResult:
+        self.calls.append(spec)
         return self.result
+
+
+class FakeSessionFactory:
+    """sessionmaker 替代品 — yield None（FakeApprovalService 也不真的用 session）。"""
+
+    def __call__(self):
+        return _NullSessionCtx()
+
+
+class _NullSessionCtx:
+    async def __aenter__(self):
+        return None
+
+    async def __aexit__(self, *a):
+        return False
+
+
+class FakeApprovalService:
+    def __init__(self, on_approve=None) -> None:
+        self.submitted: list[dict] = []
+        self.approved: list[dict] = []
+        self.on_approve = on_approve  # async callable(task_id) - test hook
+
+    async def submit(self, session, *, result, workspace_id, triggered_by_query, triggered_by_user, **kwargs):
+        task_id = f"syn-fake-{len(self.submitted) + 1}"
+        self.submitted.append(
+            {
+                "task_id": task_id,
+                "result": result,
+                "workspace_id": workspace_id,
+                "triggered_by_query": triggered_by_query,
+                "triggered_by_user": triggered_by_user,
+            }
+        )
+        return task_id
+
+    async def approve(self, session, task_id: str, reviewer: str) -> str:
+        self.approved.append({"task_id": task_id, "reviewer": reviewer})
+        if self.on_approve is not None:
+            await self.on_approve(task_id)
+        return task_id
+
+
+def _enriched(name: str, side_effect: str = "read_only") -> EnrichedToolSpec:
+    return EnrichedToolSpec(
+        name=name,
+        description=f"desc of {name}",
+        when_to_use="x",
+        examples=[ConcreteExample(scenario="x", input={"celsius": 0}, output={"fahrenheit": 32.0})],
+        input_fields=[FieldSpec(name="celsius", type="float", description="")],
+        output_fields=[FieldSpec(name="fahrenheit", type="float", description="")],
+        side_effect=side_effect,
+    )
+
+
+def _synth_success(name: str, side_effect: str = "read_only") -> SynthesisResult:
+    return SynthesisResult(
+        success=True,
+        spec_raw=ToolSpec(name=name, description="d", when_to_use="x"),
+        spec_enriched=_enriched(name, side_effect),
+        tests="def test_x(): pass",
+        final_code="class X(BaseTool): pass",
+    )
+
+
+def _synth_fail(name: str, err: str = "三輪都失敗") -> SynthesisResult:
+    return SynthesisResult(
+        success=False,
+        spec_raw=ToolSpec(name=name, description="d", when_to_use="x"),
+        spec_enriched=_enriched(name),
+        tests="",
+        error=err,
+    )
 
 
 def _step_use(step_id: str, desc: str, tool_id: str, sim: float = 0.78) -> StepDecision:
@@ -139,10 +248,11 @@ def _ctx() -> AgentContext:
     return AgentContext(workspace_id="cs", room_id="r", trace_id="t")
 
 
-def _agent(result: GapDetectionResult, llm_responses: list[str] | None = None):
+def _agent(result, llm_responses: list[str] | None = None, **kwargs):
     return ToolAgent(
         provider=ScriptedProvider(llm_responses or []),
         gap_detector=FakeGapDetector(result),
+        **kwargs,
     )
 
 
@@ -285,3 +395,130 @@ async def test_use_takes_priority_over_gap():
 
     assert out.tool_called == "celsius_to_fahrenheit"
     assert out.gap_specs == []
+
+
+# ── TA3 — 合成 path ─────────────────────────────────────────────────
+
+
+async def test_ta3_auto_synthesize_read_only_calls_new_tool(monkeypatch):
+    """GAP + 可合成 + read_only + auto_approve → 第二輪 detect 回 USE → 呼叫新 tool。"""
+    monkeypatch.setattr("app.config.settings.chat_auto_approve_read_only", True)
+
+    # approve callback：模擬把新工具註冊到 registry
+    async def _register_new_tool(_task_id):
+        tool_registry.register(_CelsiusTool())
+
+    orch = FakeOrchestrator(_synth_success("celsius_to_fahrenheit"))
+    approval = FakeApprovalService(on_approve=_register_new_tool)
+
+    # 第一輪 detect → GAP；第二輪 detect → USE celsius_to_fahrenheit
+    detector = FakeGapDetector(
+        [
+            _result([_step_gap("s1", "把攝氏轉華氏", "celsius_to_fahrenheit")]),
+            _result([_step_use("s1", "把攝氏轉華氏", "celsius_to_fahrenheit")]),
+        ]
+    )
+
+    agent = ToolAgent(
+        provider=ScriptedProvider(['{"celsius": 32}']),  # arg gen 在第二輪
+        gap_detector=detector,
+        orchestrator=orch,
+        approval_service=approval,
+        session_factory=FakeSessionFactory(),
+    )
+
+    out = await agent.run(_ctx(), ToolAgentInput(message="攝氏 32 度幾度華氏"))
+
+    assert out.tool_called == "celsius_to_fahrenheit"
+    assert out.tool_result == {"fahrenheit": 89.6}
+    assert out.skipped_reason is None
+    # 合成 + approve 都有被叫到
+    assert len(orch.calls) == 1
+    assert len(approval.submitted) == 1
+    assert len(approval.approved) == 1
+
+
+async def test_ta3_write_local_requires_approval(monkeypatch):
+    """write_local 不會 auto_approve，回 awaiting_approval。"""
+    monkeypatch.setattr("app.config.settings.chat_auto_approve_read_only", True)
+
+    orch = FakeOrchestrator(_synth_success("collect_user_data", side_effect="write_local"))
+    approval = FakeApprovalService()
+
+    agent = ToolAgent(
+        provider=ScriptedProvider([]),
+        gap_detector=FakeGapDetector(
+            _result([_step_gap("s1", "收集資料", "collect_user_data")])
+        ),
+        orchestrator=orch,
+        approval_service=approval,
+        session_factory=FakeSessionFactory(),
+    )
+
+    out = await agent.run(_ctx(), ToolAgentInput(message="幫我收集使用者身高"))
+
+    assert out.tool_called is None
+    assert out.skipped_reason == "awaiting_approval:collect_user_data"
+    assert len(approval.submitted) == 1
+    assert len(approval.approved) == 0  # 沒自動 approve
+
+
+async def test_ta3_synthesis_failure(monkeypatch):
+    """合成失敗時 skipped_reason 包含失敗原因。"""
+    monkeypatch.setattr("app.config.settings.chat_auto_approve_read_only", True)
+
+    orch = FakeOrchestrator(_synth_fail("hard_tool", err="超過 3 次 sandbox 失敗"))
+    approval = FakeApprovalService()
+
+    agent = ToolAgent(
+        provider=ScriptedProvider([]),
+        gap_detector=FakeGapDetector(
+            _result([_step_gap("s1", "難工作", "hard_tool")])
+        ),
+        orchestrator=orch,
+        approval_service=approval,
+        session_factory=FakeSessionFactory(),
+    )
+
+    out = await agent.run(_ctx(), ToolAgentInput(message="幫我做難的工作"))
+
+    assert out.tool_called is None
+    assert out.skipped_reason.startswith("synthesis_failed")
+    assert "超過 3 次" in out.skipped_reason
+    # submit 仍會被叫（讓 task 進 AWAITING_HUMAN_RESCUE）
+    assert len(approval.submitted) == 1
+
+
+async def test_ta3_auto_approve_off_routes_to_review(monkeypatch):
+    """chat_auto_approve_read_only=False 時，read_only 也要走人類審核。"""
+    monkeypatch.setattr("app.config.settings.chat_auto_approve_read_only", False)
+
+    orch = FakeOrchestrator(_synth_success("celsius_to_fahrenheit"))
+    approval = FakeApprovalService()
+
+    agent = ToolAgent(
+        provider=ScriptedProvider([]),
+        gap_detector=FakeGapDetector(
+            _result([_step_gap("s1", "x", "celsius_to_fahrenheit")])
+        ),
+        orchestrator=orch,
+        approval_service=approval,
+        session_factory=FakeSessionFactory(),
+    )
+
+    out = await agent.run(_ctx(), ToolAgentInput(message="x"))
+
+    assert out.tool_called is None
+    assert out.skipped_reason == "awaiting_approval:celsius_to_fahrenheit"
+    assert len(approval.approved) == 0
+
+
+async def test_ta3_no_synthesis_deps_falls_back_to_gap_report():
+    """沒注入 orchestrator/approval → 行為退回 TA2（GAP 只 report）。"""
+    agent = _agent(_result([_step_gap("s1", "計算複雜統計", "advanced_stats")]))
+
+    out = await agent.run(_ctx(), ToolAgentInput(message="算 90 天平均"))
+
+    assert out.tool_called is None
+    assert out.skipped_reason == "gap_detected"
+    assert len(out.gap_specs) == 1

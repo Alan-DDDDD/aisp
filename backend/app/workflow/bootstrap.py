@@ -13,6 +13,8 @@ from app.agents.ticket_decision import TicketDecisionAgent
 from app.agents.tone import ToneAgent
 from app.agents.tool_agent import ToolAgent
 from app.providers.factory import get_provider
+from app.synthesis import integration as synth_integration
+from app.synthesis.orchestrator import SynthesisOrchestrator
 from app.tools import registry as tool_registry
 from app.tools.kb_search import KBSearchTool
 from app.tools.ticket_create import TicketCreateTool
@@ -40,5 +42,17 @@ def register_default_agents() -> None:
     agent_registry.register(ComposerAgent(provider=provider))
     agent_registry.register(TicketDecisionAgent(provider=provider))
     agent_registry.register(ClauseAnalyzerAgent(provider=provider))
-    agent_registry.register(ToolAgent(provider=provider))
+
+    # ToolAgent + 合成能力（TA3）：lazy 解析 SessionLocal 避免 import 時 init_db 未跑
+    from app.db.database import SessionLocal
+
+    agent_registry.register(
+        ToolAgent(
+            provider=provider,
+            orchestrator=SynthesisOrchestrator(provider=provider),
+            approval_service=synth_integration.get_approval_service(),
+            session_factory=SessionLocal,
+        )
+    )
+
     log.info("Registered default agents: %s", agent_registry.list_ids())
