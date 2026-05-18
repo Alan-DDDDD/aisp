@@ -1,13 +1,3 @@
----
-title: Aisp
-emoji: 👁
-colorFrom: green
-colorTo: yellow
-sdk: docker
-pinned: false
-short_description: Enterprise AI Agent platform with YAML workflows
----
-
 # AISP — Enterprise AI Agent Platform
 
 > **Multi-Department Agentic Workspace.**
