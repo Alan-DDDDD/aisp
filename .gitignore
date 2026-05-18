@@ -58,9 +58,10 @@ docs/*
 !docs/eval-report.md
 !docs/ai-design-decisions.md
 
-# 個人規劃 / 開發 log — 內部使用，避免之後不小心 git add 回來
+# 個人規劃 / 開發 log / 面試 cheat sheet — 內部使用，避免之後不小心 git add 回來
 PLAN.md
 PROGRESS.md
+INTERVIEW_NOTES.md
 
 # Retrieval eval 跑出來的暫存資料（重跑可重生）
 backend/.eval-data/
