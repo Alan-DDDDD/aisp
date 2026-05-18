@@ -43,6 +43,8 @@ class KBSearchTool(BaseTool):
     side_effect = SideEffect.READ_ONLY
     requires_approval = False
     tags = ["knowledge", "rag", "retrieval"]
+    # 由 knowledge_agent step 內部直接呼叫；不該被 tool_agent retrieval 命中
+    discoverable = False
 
     async def call(  # type: ignore[override]
         self, ctx: AgentContext, payload: KnowledgeAgentInput

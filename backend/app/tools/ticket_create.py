@@ -68,6 +68,8 @@ class TicketCreateTool(BaseTool):
     side_effect = SideEffect.WRITE_LOCAL
     requires_approval = False
     tags = ["it", "ticket", "helpdesk"]
+    # 由 ticket_decision_agent 在 IT workflow 內部呼叫；不該被 tool_agent retrieval 命中
+    discoverable = False
 
     async def call(  # type: ignore[override]
         self, ctx: AgentContext, payload: TicketCreateInput
