@@ -1,4 +1,17 @@
+---
+sdk: docker
+title: Aisp
+short_description: Enterprise AI Agent platform with YAML workflows
+---
+
 # AISP — Enterprise AI Agent Platform
+
+[![tests](https://img.shields.io/badge/tests-214%20passing-brightgreen)](./MANUAL_TEST.md)
+[![phase](https://img.shields.io/badge/phase-14-blue)]()
+[![backend](https://img.shields.io/badge/backend-FastAPI%20%2B%20SQLAlchemy%202-009688)]()
+[![frontend](https://img.shields.io/badge/frontend-Vue%203%20%2B%20Vite-42b883)]()
+[![llm](https://img.shields.io/badge/LLM-Groq%20%7C%20Mock-orange)]()
+[![python](https://img.shields.io/badge/python-3.11%2B-3776ab)]()
 
 > **Multi-Department Agentic Workspace.**
 > 每個部門用 YAML 設定自己的 AI Agent 流程與知識庫，共用同一份後端 runtime。
