@@ -111,6 +111,14 @@ class ToolRetriever:
         for tid, (vec, ws) in self._index.items():
             if not _visible_to(ws, workspace_id):
                 continue
+            # 跳過 agent-internal 工具（kb_search / ticket_create 等只給特定
+            # agent step 內部呼叫，不該被 tool_agent / gap_detector 命中）
+            try:
+                if not _tool_class(tid).discoverable:
+                    continue
+            except KeyError:
+                # 索引與 registry 不同步 — 跳過
+                continue
             scored.append((tid, _cosine(query_vec, vec)))
         scored.sort(key=lambda x: x[1], reverse=True)
 

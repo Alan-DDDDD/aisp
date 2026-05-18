@@ -1,8 +1,38 @@
+from typing import Any
+
 from app.agents.base import BaseAgent
 from app.config import settings
 from app.providers.base import GenerationRequest, LLMProvider
 from app.schemas.agent import AgentContext, ComposerInput, ComposerOutput
 from app.workflow import workspace_registry
+
+
+def _is_effectively_empty(value: Any) -> bool:
+    """判斷 tool_result 是否「實質為空」— 沒有任何 LLM 可引用的內容。
+
+    例如 kb_search 回 `{"docs": [], "kb_name": "faq", "query": "..."}` — 雖然
+    dict 有 3 個 key，但實質「我搜了什麼都沒找到」應視為無資料。
+    遞迴定義：None / 0 長度 collection / 空字串 / 全部 value 都遞迴為空的 dict
+    被視為空。
+    """
+    if value is None:
+        return True
+    if isinstance(value, str):
+        return value.strip() == ""
+    if isinstance(value, (list, tuple, set)):
+        return len(value) == 0
+    if isinstance(value, dict):
+        if not value:
+            return True
+        # 忽略 metadata-like 欄位（query 是 echo 不算 evidence）
+        IGNORE_KEYS = {"query", "kb_name", "workspace_id"}
+        meaningful = {k: v for k, v in value.items() if k not in IGNORE_KEYS}
+        if not meaningful:
+            # 整個 dict 都是 metadata（沒有實質 payload）→ 視為空
+            return True
+        return all(_is_effectively_empty(v) for v in meaningful.values())
+    # number / bool / 其他 scalar → 視為有值
+    return False
 
 SYSTEM_PROMPT = """你是一個企業客服 Composer agent。
 依據使用者訊息、上游 agent 提供的意圖、工具結果、知識來源與語氣建議，
@@ -100,8 +130,14 @@ class ComposerAgent(BaseAgent):
                 f"意圖：{payload.intent.intent}（類別：{payload.intent.category}）"
             )
         # TA5：tool 命中時優先；用 [TOOL_RESULT] 標籤跟 system prompt 內提到的
-        # 「工具結果」字眼區隔，避免 LLM 看到 prompt 規則就以為有資料
-        if payload.tool_called and payload.tool_result:
+        # 「工具結果」字眼區隔，避免 LLM 看到 prompt 規則就以為有資料。
+        # 若 tool_result「實質為空」（所有 value 都是空 list/dict/None/空字串），
+        # 也跳過 inject — 否則 composer 看到 {"docs":[]} 還是會幻覺生內容
+        if (
+            payload.tool_called
+            and payload.tool_result
+            and not _is_effectively_empty(payload.tool_result)
+        ):
             parts.append(
                 f"[TOOL_RESULT]\ntool: {payload.tool_called}\noutput: {payload.tool_result}\n[/TOOL_RESULT]"
             )

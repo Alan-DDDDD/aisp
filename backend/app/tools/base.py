@@ -63,6 +63,11 @@ class BaseTool(ABC):
     side_effect: SideEffect = SideEffect.READ_ONLY
     requires_approval: bool = False  # 高風險工具執行前是否再問人類
     tags: list[str] = []
+    # tool_agent 對 user message 做 retrieval 時是否該看見這個工具。
+    # False = 「agent-internal」工具，只有特定 agent（如 knowledge_agent 之於
+    # kb_search、ticket_decision_agent 之於 ticket_create）主動呼叫；tool_agent
+    # 不該誤選它們。True = 一般 user-facing 工具（含所有 generated tool）。
+    discoverable: bool = True
 
     # ── Generated tool 才有 ────────────
     approved_by: str | None = None
