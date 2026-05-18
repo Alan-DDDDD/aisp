@@ -83,6 +83,22 @@ class ComposerAgent(BaseAgent):
             if (d.get("score") or 0.0) >= settings.composer_min_doc_score
         ]
 
+        # ── HARD anti-hallucination guard：完全沒任何依據時，**不呼叫 LLM**，
+        # 直接 return 固定句子。8B 模型對嚴格 prompt 不夠服從（多次實測會幻覺
+        # 「我用工具算了 X」即使 tool_called=null），這條 guard 才是真正可靠的
+        # 保險絲。
+        has_tool_result = (
+            payload.tool_called
+            and payload.tool_result
+            and not _is_effectively_empty(payload.tool_result)
+        )
+        has_docs = bool(relevant_docs)
+        if not has_tool_result and not has_docs:
+            return ComposerOutput(
+                text="目前知識庫中沒有相關資訊，建議改詢問人工客服或對應部門。",
+                citations=[],
+            )
+
         context_block = self._build_context(payload, relevant_docs)
         system = SYSTEM_PROMPT + ("\n\n上下文：\n" + context_block if context_block else "")
         req = GenerationRequest(

@@ -204,3 +204,57 @@ async def test_tool_with_error_doesnt_break_pipeline(_bootstrap_with_tool):
     # 用閉合 tag 當 marker — 只會出現在 _build_context 實際注入的 block，
     # 不會出現在 system prompt 的規則文字中（規則只提開頭 tag）
     assert "[/TOOL_RESULT]" not in composer.last_system
+
+
+async def test_no_tool_no_docs_short_circuits_without_llm(_bootstrap_with_tool):
+    """HARD guard：tool_result=null + docs=[] → 不呼叫 LLM，直接回固定句子。
+
+    這條 guard 是反幻覺的最終保險絲。8B 模型對嚴格 prompt 不夠服從（實測會幻覺
+    「我用工具算了 X」即使 tool_called=null），靠程式邏輯硬擋。
+    """
+    composer = _bootstrap_with_tool(
+        ToolAgentOutput(
+            tool_called=None,
+            tool_result=None,
+            skipped_reason="synthesis_exception:rate_limit",
+        )
+    )
+    wf = WorkflowDef.model_validate(yaml.safe_load(_WORKFLOW_YAML))
+
+    result = await run_workflow(
+        wf,
+        event={"message": "100 平方公尺換成坪"},
+        workspace_id="test",
+        room_id="r4",
+        history=[],
+    )
+
+    # LLM 完全沒被呼叫到（last_system 仍是 init 時的空字串）
+    assert composer.last_system == ""
+    # emit 回固定句子
+    assert "目前知識庫中沒有相關資訊" in result.emit["draft"]
+    # 不准出現幻覺字眼
+    assert "11.15" not in result.emit["draft"]
+    assert "我呼叫" not in result.emit["draft"]
+
+
+async def test_tool_with_empty_kb_search_result_also_short_circuits(_bootstrap_with_tool):
+    """tool_called=kb_search 但 docs=[] 應被 _is_effectively_empty 抓到 → 走 hard guard。"""
+    composer = _bootstrap_with_tool(
+        ToolAgentOutput(
+            tool_called="kb_search",
+            tool_result={"docs": [], "kb_name": "faq", "query": "100 平方公尺"},
+        )
+    )
+    wf = WorkflowDef.model_validate(yaml.safe_load(_WORKFLOW_YAML))
+
+    result = await run_workflow(
+        wf,
+        event={"message": "100 平方公尺"},
+        workspace_id="test",
+        room_id="r5",
+        history=[],
+    )
+
+    assert composer.last_system == ""
+    assert "目前知識庫中沒有相關資訊" in result.emit["draft"]
