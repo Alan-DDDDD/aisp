@@ -93,3 +93,60 @@ export function listTickets(workspaceId) {
 export function listWorkspaceRooms(workspaceId, limit = 20) {
   return request(`/api/admin/workspaces/${workspaceId}/rooms?limit=${limit}`)
 }
+
+// ── Phase 6: Synthesis ─────────────────────────────────────────────
+
+export function listSynthesisTasks(params = {}) {
+  const qs = new URLSearchParams(
+    Object.entries(params).filter(([, v]) => v !== '' && v != null)
+  ).toString()
+  return request(`/api/admin/synthesis-tasks${qs ? `?${qs}` : ''}`)
+}
+
+export function getSynthesisTask(id) {
+  return request(`/api/admin/synthesis-tasks/${id}`)
+}
+
+export function getSynthesisSource(id) {
+  return request(`/api/admin/synthesis-tasks/${id}/source`)
+}
+
+export function getSynthesisReviews(id) {
+  return request(`/api/admin/synthesis-tasks/${id}/reviews`)
+}
+
+export function approveSynthesisTask(id, reviewer = 'admin-ui') {
+  return request(`/api/synthesis/tasks/${id}/approve`, {
+    method: 'POST',
+    body: JSON.stringify({ reviewer }),
+  })
+}
+
+export function rejectSynthesisTask(id, reviewer = 'admin-ui', note = '') {
+  return request(`/api/synthesis/tasks/${id}/reject`, {
+    method: 'POST',
+    body: JSON.stringify({ reviewer, note }),
+  })
+}
+
+export function listGeneratedTools(params = {}) {
+  const qs = new URLSearchParams(
+    Object.entries(params).filter(([, v]) => v !== '' && v != null)
+  ).toString()
+  return request(`/api/admin/generated-tools${qs ? `?${qs}` : ''}`)
+}
+
+export function promoteGeneratedTool(id) {
+  return request(`/api/admin/generated-tools/${id}/promote-global`, { method: 'POST' })
+}
+
+export function deprecateGeneratedTool(id) {
+  return request(`/api/admin/generated-tools/${id}/deprecate`, { method: 'POST' })
+}
+
+export function listDecisionAudit(params = {}) {
+  const qs = new URLSearchParams(
+    Object.entries(params).filter(([, v]) => v !== '' && v != null)
+  ).toString()
+  return request(`/api/admin/decision-audit${qs ? `?${qs}` : ''}`)
+}
