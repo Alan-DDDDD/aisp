@@ -1,20 +1,21 @@
-"""ToolAgent — TA3：用 gap_detector 拆 step + 命中工具呼叫；GAP 時自動觸發合成。
+"""ToolAgent — TA3：用 gap_detector 拆 step + 命中工具呼叫；GAP 時觸發合成等審。
 
 職責：
   1. 把 user message 餵 gap_detector：planner 拆 step → retrieval shortcut → judge
   2. 找第一個 USE step → LLM 推 args → 呼叫對應 tool
   3. 沒 USE 但有 GAP：
      - 若有 orchestrator + approval_service + session_factory 注入 → 同步觸發合成
-     - read_only 工具且 chat_auto_approve_read_only=True → 自動 approve → 重跑找新工具
-     - 否則送審核，回 awaiting_approval 訊息
+     - 合成成功 → ApprovalService.submit → 進 AWAITING_APPROVAL（推 Telegram +
+       寫 dashboard）→ composer 告知使用者「已生成工具，待審後再試」
+     - 合成失敗 → 進 AWAITING_HUMAN_RESCUE
   4. 全部 no_tool_needed → 放行給下游 knowledge agent
 
-設計重點：
-- 合成是同步 + sync auto-approve → 一次對話就能看到結果（demo 友善）
-- prod 應把 chat_auto_approve_read_only=False，所有合成走 HITL
+設計重點（PLAN §22.5.7）：
+- 嚴格遵守 HITL — 所有 generated tool 一定要人類按 Approve 才能進 registry。
+  本層不做 auto-approve（即使 side_effect=read_only），避免「LLM 寫的 code 沒被審
+  就上線」這個 Phase 6 紅線
 - 一次 chat 最多 1 個 tool 呼叫 + 1 個合成觸發（不做 multi-gap）
-- 遞迴呼叫 self.run() 只發生在 auto-approve 後（registry 已多一個工具），
-  正常情況下二次呼叫會走 USE path 而非再次進入 GAP → 不會無限遞迴
+- 註冊新工具需要人類審核 → 不會在這層內遞迴呼叫 self.run()
 """
 
 from __future__ import annotations
@@ -26,7 +27,6 @@ from pydantic import ValidationError
 
 from app.agents._json_util import parse_json_loose
 from app.agents.base import BaseAgent
-from app.config import settings
 from app.providers.base import GenerationRequest, LLMProvider
 from app.schemas.agent import AgentContext, ToolAgentInput, ToolAgentOutput
 from app.synthesis.approval import ApprovalService
@@ -167,7 +167,7 @@ class ToolAgent(BaseAgent):
         gap_steps: list[StepDecision],
         cands_summary: list[dict[str, Any]],
     ) -> ToolAgentOutput:
-        """GAP path：可合成就觸發，否則 report；auto_approve 條件成立則重跑找新 tool。"""
+        """GAP path：可合成就觸發 → submit 等審；不在這層自動 approve。"""
         gap_specs_dump = [s.gap_spec.model_dump() for s in gap_steps if s.gap_spec]
 
         # 沒注入合成能力 → 退回 TA2 行為（report only）
@@ -200,19 +200,12 @@ class ToolAgent(BaseAgent):
 
         async with self.session_factory() as session:  # type: ignore[misc]
             try:
-                task_id = await self.approval_service.submit(  # type: ignore[union-attr]
+                await self.approval_service.submit(  # type: ignore[union-attr]
                     session,
                     result=result,
                     workspace_id=ctx.workspace_id,
                     triggered_by_query=payload.message,
                     triggered_by_user="chat",
-                    triggered_by_query_id=getattr(
-                        # 沒帶 query_id 也沒關係 — gap_detector 內部會生一個
-                        # 但這裡無法取得，省略
-                        None,
-                        "_unused",
-                        None,
-                    ),
                 )
             except Exception as e:  # noqa: BLE001
                 log.exception("tool_agent: ApprovalService.submit 失敗")
@@ -222,55 +215,20 @@ class ToolAgent(BaseAgent):
                     gap_specs=gap_specs_dump,
                 )
 
-            new_tool_name = result.spec_enriched.name
+        new_tool_name = result.spec_enriched.name
 
-            if not result.success:
-                return ToolAgentOutput(
-                    candidates=cands_summary,
-                    skipped_reason=f"synthesis_failed:{result.error or 'unknown'}",
-                    gap_specs=gap_specs_dump,
-                )
+        if not result.success:
+            # 合成失敗 — task 已是 AWAITING_HUMAN_RESCUE 等待 refine/abandon
+            return ToolAgentOutput(
+                candidates=cands_summary,
+                skipped_reason=f"synthesis_failed:{result.error or 'unknown'}",
+                gap_specs=gap_specs_dump,
+            )
 
-            is_safe = result.spec_enriched.side_effect == "read_only"
-            if not (settings.chat_auto_approve_read_only and is_safe):
-                # 走人類審核流程；本輪對話不執行
-                return ToolAgentOutput(
-                    candidates=cands_summary,
-                    skipped_reason=f"awaiting_approval:{new_tool_name}",
-                    gap_specs=gap_specs_dump,
-                )
-
-            try:
-                await self.approval_service.approve(  # type: ignore[union-attr]
-                    session, task_id, reviewer="auto-chat"
-                )
-            except Exception as e:  # noqa: BLE001
-                log.exception("tool_agent: auto-approve 失敗")
-                return ToolAgentOutput(
-                    candidates=cands_summary,
-                    skipped_reason=f"auto_approve_failed:{e}",
-                    gap_specs=gap_specs_dump,
-                )
-
-        # auto-approved + registered — 重跑一次找新工具
-        log.info(
-            "tool_agent: auto-synthesized %s for query %r — re-running detect",
-            new_tool_name,
-            payload.message[:60],
-        )
-        retry = await self.run(ctx, payload)
-        # 把「我們剛剛合成出來的」訊息層層帶上去；若 retry 沒命中新工具，
-        # 至少 trace 看得到合成有發生
-        if retry.tool_called == new_tool_name and retry.skipped_reason is None:
-            return retry
-        # 沒命中（極少見） — 把這個情況也露出去給 trace
-        retry_reason = retry.skipped_reason or "no_match_after_auto_approve"
+        # 合成成功 — 一律走 HITL，等管理員按 Approve 才會註冊
         return ToolAgentOutput(
-            tool_called=retry.tool_called,
-            tool_result=retry.tool_result,
-            candidates=retry.candidates,
-            skipped_reason=f"auto_approved_{new_tool_name}_but_{retry_reason}",
-            error=retry.error,
+            candidates=cands_summary,
+            skipped_reason=f"awaiting_approval:{new_tool_name}",
             gap_specs=gap_specs_dump,
         )
 

@@ -12,11 +12,9 @@
   - arg gen 回不可 parse → arg_gen_unparseable
   - multi-step 拿第一個 USE / USE 優先 GAP
 
-  TA3：
-  - GAP + 可合成 + read_only + auto_approve → 遞迴 USE 新工具
-  - GAP + 可合成 + write_local → awaiting_approval（不自動 approve）
-  - GAP + 可合成 + 合成失敗 → synthesis_failed
-  - GAP + 可合成 + auto_approve 設 False → awaiting_approval
+  TA3（嚴格 HITL，無 auto-approve）：
+  - GAP + 可合成 + 成功 → submit → awaiting_approval（任何 side_effect 都一樣）
+  - GAP + 可合成 + 失敗 → submit → synthesis_failed（task 進 AWAITING_HUMAN_RESCUE）
 
 不直接測 gap_detector cascading（它有自己 18 個測試）— 這裡注入 FakeGapDetector
 直接拿到 canned GapDetectionResult。
@@ -397,76 +395,42 @@ async def test_use_takes_priority_over_gap():
     assert out.gap_specs == []
 
 
-# ── TA3 — 合成 path ─────────────────────────────────────────────────
+# ── TA3 — 合成 path（嚴格 HITL，無 auto-approve）──────────────────────
 
 
-async def test_ta3_auto_synthesize_read_only_calls_new_tool(monkeypatch):
-    """GAP + 可合成 + read_only + auto_approve → 第二輪 detect 回 USE → 呼叫新 tool。"""
-    monkeypatch.setattr("app.config.settings.chat_auto_approve_read_only", True)
+async def test_ta3_synth_success_routes_to_approval_regardless_of_side_effect():
+    """合成成功 → 一律 submit + awaiting_approval；不論 read_only 或 write_local。
 
-    # approve callback：模擬把新工具註冊到 registry
-    async def _register_new_tool(_task_id):
-        tool_registry.register(_CelsiusTool())
+    PLAN §22.5.7 紅線：LLM 生的 code 必須由人類審核才能進 registry，本層
+    不做 auto-approve。
+    """
+    for side_effect in ("read_only", "write_local", "write_external"):
+        orch = FakeOrchestrator(_synth_success("test_tool", side_effect=side_effect))
+        approval = FakeApprovalService()
 
-    orch = FakeOrchestrator(_synth_success("celsius_to_fahrenheit"))
-    approval = FakeApprovalService(on_approve=_register_new_tool)
+        agent = ToolAgent(
+            provider=ScriptedProvider([]),
+            gap_detector=FakeGapDetector(
+                _result([_step_gap("s1", "做事", "test_tool")])
+            ),
+            orchestrator=orch,
+            approval_service=approval,
+            session_factory=FakeSessionFactory(),
+        )
 
-    # 第一輪 detect → GAP；第二輪 detect → USE celsius_to_fahrenheit
-    detector = FakeGapDetector(
-        [
-            _result([_step_gap("s1", "把攝氏轉華氏", "celsius_to_fahrenheit")]),
-            _result([_step_use("s1", "把攝氏轉華氏", "celsius_to_fahrenheit")]),
-        ]
-    )
+        out = await agent.run(_ctx(), ToolAgentInput(message=f"side_effect={side_effect}"))
 
-    agent = ToolAgent(
-        provider=ScriptedProvider(['{"celsius": 32}']),  # arg gen 在第二輪
-        gap_detector=detector,
-        orchestrator=orch,
-        approval_service=approval,
-        session_factory=FakeSessionFactory(),
-    )
-
-    out = await agent.run(_ctx(), ToolAgentInput(message="攝氏 32 度幾度華氏"))
-
-    assert out.tool_called == "celsius_to_fahrenheit"
-    assert out.tool_result == {"fahrenheit": 89.6}
-    assert out.skipped_reason is None
-    # 合成 + approve 都有被叫到
-    assert len(orch.calls) == 1
-    assert len(approval.submitted) == 1
-    assert len(approval.approved) == 1
+        assert out.tool_called is None
+        assert out.skipped_reason == "test_tool".join(
+            ["awaiting_approval:", ""]
+        ), f"side_effect={side_effect} should still route to approval"
+        assert len(approval.submitted) == 1
+        # 嚴格無 auto-approve
+        assert approval.approved == []
 
 
-async def test_ta3_write_local_requires_approval(monkeypatch):
-    """write_local 不會 auto_approve，回 awaiting_approval。"""
-    monkeypatch.setattr("app.config.settings.chat_auto_approve_read_only", True)
-
-    orch = FakeOrchestrator(_synth_success("collect_user_data", side_effect="write_local"))
-    approval = FakeApprovalService()
-
-    agent = ToolAgent(
-        provider=ScriptedProvider([]),
-        gap_detector=FakeGapDetector(
-            _result([_step_gap("s1", "收集資料", "collect_user_data")])
-        ),
-        orchestrator=orch,
-        approval_service=approval,
-        session_factory=FakeSessionFactory(),
-    )
-
-    out = await agent.run(_ctx(), ToolAgentInput(message="幫我收集使用者身高"))
-
-    assert out.tool_called is None
-    assert out.skipped_reason == "awaiting_approval:collect_user_data"
-    assert len(approval.submitted) == 1
-    assert len(approval.approved) == 0  # 沒自動 approve
-
-
-async def test_ta3_synthesis_failure(monkeypatch):
-    """合成失敗時 skipped_reason 包含失敗原因。"""
-    monkeypatch.setattr("app.config.settings.chat_auto_approve_read_only", True)
-
+async def test_ta3_synthesis_failure_submits_to_rescue():
+    """合成失敗時：submit 仍被叫（task 進 AWAITING_HUMAN_RESCUE）；output 帶錯誤摘要。"""
     orch = FakeOrchestrator(_synth_fail("hard_tool", err="超過 3 次 sandbox 失敗"))
     approval = FakeApprovalService()
 
@@ -485,36 +449,12 @@ async def test_ta3_synthesis_failure(monkeypatch):
     assert out.tool_called is None
     assert out.skipped_reason.startswith("synthesis_failed")
     assert "超過 3 次" in out.skipped_reason
-    # submit 仍會被叫（讓 task 進 AWAITING_HUMAN_RESCUE）
     assert len(approval.submitted) == 1
-
-
-async def test_ta3_auto_approve_off_routes_to_review(monkeypatch):
-    """chat_auto_approve_read_only=False 時，read_only 也要走人類審核。"""
-    monkeypatch.setattr("app.config.settings.chat_auto_approve_read_only", False)
-
-    orch = FakeOrchestrator(_synth_success("celsius_to_fahrenheit"))
-    approval = FakeApprovalService()
-
-    agent = ToolAgent(
-        provider=ScriptedProvider([]),
-        gap_detector=FakeGapDetector(
-            _result([_step_gap("s1", "x", "celsius_to_fahrenheit")])
-        ),
-        orchestrator=orch,
-        approval_service=approval,
-        session_factory=FakeSessionFactory(),
-    )
-
-    out = await agent.run(_ctx(), ToolAgentInput(message="x"))
-
-    assert out.tool_called is None
-    assert out.skipped_reason == "awaiting_approval:celsius_to_fahrenheit"
-    assert len(approval.approved) == 0
+    assert approval.approved == []
 
 
 async def test_ta3_no_synthesis_deps_falls_back_to_gap_report():
-    """沒注入 orchestrator/approval → 行為退回 TA2（GAP 只 report）。"""
+    """沒注入 orchestrator/approval → 行為退回 TA2（GAP 只 report，不觸發合成）。"""
     agent = _agent(_result([_step_gap("s1", "計算複雜統計", "advanced_stats")]))
 
     out = await agent.run(_ctx(), ToolAgentInput(message="算 90 天平均"))
