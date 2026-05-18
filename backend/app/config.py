@@ -54,6 +54,43 @@ class Settings(BaseSettings):
     groq_max_attempts: int = 3           # 含首次共 3 次
     groq_max_retry_delay_s: float = 15.0  # 單次 sleep 上限，避免卡太久
 
+    # ── Phase 6 — Gap Detection（PLAN §22.4）─────────────────────────────
+    # Retrieval similarity shortcut 閾值
+    gap_sim_high: float = 0.85          # >= 此值：跳過 judge 直接 USE
+    gap_sim_low: float = 0.40           # <= 此值：跳過 judge 直接 GAP
+    # Judge LLM 輸出的 confidence 解讀
+    gap_conf_high: float = 0.85         # >= 此值：USE / COMPOSE / GAP 直接採信
+    gap_conf_low: float = 0.40          # <= 此值：直接採信（多半是 GAP）
+    # 灰色區（gap_conf_low < c < gap_conf_high）會送 HumanReviewInterface
+
+    # Phase A 兩個角色的預設 model（可被 .env 覆寫）
+    gap_planner_model: str = "llama-3.3-70b-versatile"
+    gap_judge_model: str = "llama-3.1-8b-instant"
+
+    # Retrieval
+    gap_retrieval_top_k: int = 5
+
+    # ── Phase 6 — Tool Synthesis（PLAN §22.5）───────────────────────────
+    # 失敗修正迴圈最大 round 數（PLAN §22.5.6）
+    synth_max_attempts: int = 3
+    # sandbox 單次 pytest 執行 timeout（秒）
+    synth_sandbox_timeout_s: int = 60
+    # E2B API key（空字串 → 走 LocalSubprocessRunner）
+    e2b_api_key: str = ""
+
+    # ── Phase 6 — Telegram HITL（PLAN §22.4.4 / §22.5.7）─────────────────
+    # 來自 BotFather 的 token（空 → Telegram 整套停用）
+    tg_bot_token: str = ""
+    # demo 階段固定推一個 chat_id（你自己）；多人版才做 mapping
+    tg_chat_id: str = ""
+    # polling（無公網 URL 也能用）/ webhook（PROD 公開 https URL）
+    tg_mode: str = "polling"
+    # 灰色區詢問人類的等待 timeout（秒，超過視為 fallback）
+    tg_review_timeout_s: int = 600
+
+    # Generated tools 的程式碼存放目錄（相對 backend 啟動 cwd）
+    generated_tools_dir: str = "../workspaces/generated_tools"
+
     allowed_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
 
     @property

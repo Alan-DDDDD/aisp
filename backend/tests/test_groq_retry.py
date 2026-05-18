@@ -12,7 +12,6 @@ import pytest
 
 from app.providers.groq import _is_retryable, _parse_retry_delay, _post_with_retry
 
-
 # ──────────────────────────────────────────────────────────────────────────
 # _parse_retry_delay
 # ──────────────────────────────────────────────────────────────────────────

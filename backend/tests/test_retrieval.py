@@ -9,10 +9,10 @@ import pytest
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.db.database import Base
-from app.km import bm25_index, eval as eval_mod, ingest, retriever, store
+from app.km import bm25_index, ingest, retriever, store
+from app.km import eval as eval_mod
 from app.km.retriever import _rrf_fuse
 from app.schemas.knowledge import KnowledgeSearchHit
-
 
 # ──────────────────────────────────────────────────────────────────────────
 # BM25 tokenization

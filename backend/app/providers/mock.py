@@ -5,7 +5,6 @@ import time
 
 from app.providers.base import GenerationRequest, GenerationResponse, LLMProvider
 
-
 _INTENT_KEYWORDS: list[tuple[str, str, str]] = [
     # (keyword, category, intent)
     ("車貸", "loan", "loan_inquiry"),
@@ -62,7 +61,8 @@ class MockProvider(LLMProvider):
         latency_ms = int((time.perf_counter() - start) * 1000)
         return GenerationResponse(
             text=text,
-            model="mock-v1",
+            # 若呼叫端指定了 model 就回傳該名稱，方便測試驗證 routing
+            model=req.model or "mock-v1",
             usage={"prompt_tokens": len(last_user), "completion_tokens": len(text)},
             latency_ms=latency_ms,
             logprobs_content=logprobs_content,

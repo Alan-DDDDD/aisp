@@ -1,5 +1,5 @@
 import asyncio
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import yaml
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
@@ -301,7 +301,7 @@ async def ingest_document(
         metadata=doc.doc_metadata or {},
         version=doc.version,
         status=doc.status,
-        updated_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(UTC),
         chunk_count=chunk_count,
     )
 
@@ -334,7 +334,7 @@ async def ingest_document_by_kb_id(
         metadata=doc.doc_metadata or {},
         version=doc.version,
         status=doc.status,
-        updated_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(UTC),
         chunk_count=chunk_count,
     )
 
@@ -402,6 +402,6 @@ async def upload_pdf_to_kb(
         metadata=doc.doc_metadata or {},
         version=doc.version,
         status=doc.status,
-        updated_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(UTC),
         chunk_count=chunk_count,
     )
