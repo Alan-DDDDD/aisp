@@ -45,6 +45,9 @@ class ComposerInput(BaseModel):
     risk: dict[str, Any] | None = None
     clause_analysis: dict[str, Any] | None = None
     ticket: dict[str, Any] | None = None
+    # TA5：tool_agent 命中工具時的結果；composer 看到這個會優先採用而非走 RAG。
+    tool_result: dict[str, Any] | None = None
+    tool_called: str | None = None
 
 
 class ComposerOutput(BaseModel):
@@ -110,3 +113,18 @@ class ClauseAnalyzerOutput(BaseModel):
     risk_level: str = "low"
     suggestion: str = ""
     key_points: list[str] = Field(default_factory=list)
+
+
+# TA1：tool_agent — 對 user message 做 retrieval，命中就呼叫；
+# TA2 起會接上 gap_detector + 合成。
+class ToolAgentInput(BaseModel):
+    message: str
+    intent: RouterOutput | None = None
+
+
+class ToolAgentOutput(BaseModel):
+    tool_called: str | None = None  # tool_id；None 表示這條路徑沒呼叫工具
+    tool_result: dict[str, Any] | None = None  # tool 回傳值（model_dump）
+    candidates: list[dict[str, Any]] = Field(default_factory=list)  # retrieval 觀測
+    skipped_reason: str | None = None  # 沒呼叫的原因（觀測用，給 trace 看）
+    error: str | None = None  # 呼叫過程出錯時的訊息

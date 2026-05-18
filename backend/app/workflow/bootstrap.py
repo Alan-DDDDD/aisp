@@ -11,6 +11,7 @@ from app.agents.risk import RiskAgent
 from app.agents.router import RouterAgent
 from app.agents.ticket_decision import TicketDecisionAgent
 from app.agents.tone import ToneAgent
+from app.agents.tool_agent import ToolAgent
 from app.providers.factory import get_provider
 from app.tools import registry as tool_registry
 from app.tools.kb_search import KBSearchTool
@@ -39,4 +40,5 @@ def register_default_agents() -> None:
     agent_registry.register(ComposerAgent(provider=provider))
     agent_registry.register(TicketDecisionAgent(provider=provider))
     agent_registry.register(ClauseAnalyzerAgent(provider=provider))
+    agent_registry.register(ToolAgent(provider=provider))
     log.info("Registered default agents: %s", agent_registry.list_ids())
