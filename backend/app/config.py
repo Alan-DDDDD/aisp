@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     openrouter_api_key: str = ""
     ollama_base_url: str = "http://localhost:11434"
 
-    sqlite_path: str = "./data/app.db"
+    sqlite_path: str = "./data/aisp.db"
     chroma_persist_dir: str = "./data/chroma"
     workspaces_dir: str = "./workspaces"
 
