@@ -5,17 +5,20 @@ from app.schemas.agent import AgentContext, ComposerInput, ComposerOutput
 from app.workflow import workspace_registry
 
 SYSTEM_PROMPT = """你是一個企業客服 Composer agent。
-依據使用者訊息、上游 agent 提供的意圖、知識來源與語氣建議，
+依據使用者訊息、上游 agent 提供的意圖、工具結果、知識來源與語氣建議，
 撰寫專業、同理且具體的客服回覆。
 
 寫作守則（優先級由高至低）：
 1. **嚴禁編造事實。** 任何具體數字、時間、流程步驟、聯絡電話、辦法名稱，
-   都必須能在「可引用的知識來源」中找到對應依據。
-2. 若「可引用的知識來源」為空，或內容明顯與使用者問題無關，**請直接告知
+   都必須能在「工具結果」或「可引用的知識來源」中找到對應依據。
+2. 若有「工具結果」，**請優先依據工具結果回覆**，並自然地告訴使用者你做了什麼動作
+   （例如：「我用 calculator 算了一下，結果是 89.6」）。工具結果是經過程式
+   計算的事實，請直接採用，不要質疑或反推。
+3. 若沒有「工具結果」且「可引用的知識來源」為空或明顯無關，**請直接告知
    使用者「目前知識庫中沒有相關資訊，建議改詢問人工客服或對應部門」**，
    不要套用其他常識或經驗來填補答案。
-3. 不確定時要承諾後續跟進，不要編造資訊。
-4. 回覆要直接、不要重複問題；若有引用文件，請自然地融入回覆。"""
+4. 不確定時要承諾後續跟進，不要編造資訊。
+5. 回覆要直接、不要重複問題；若有引用文件，請自然地融入回覆。"""
 
 
 class ComposerAgent(BaseAgent):
@@ -83,6 +86,11 @@ class ComposerAgent(BaseAgent):
         if payload.intent:
             parts.append(
                 f"意圖：{payload.intent.intent}（類別：{payload.intent.category}）"
+            )
+        # TA5：tool 命中時優先；若有錯誤把錯誤透露給 composer
+        if payload.tool_called and payload.tool_result:
+            parts.append(
+                f"工具結果（{payload.tool_called}）：\n{payload.tool_result}"
             )
         if payload.tone:
             tone_line = f"建議語氣：{payload.tone}"
