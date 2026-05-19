@@ -18,7 +18,7 @@ RUN pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu 
 
 # Install python deps（layer cache）
 COPY backend/pyproject.toml backend/README.md* ./backend/
-RUN pip install --no-cache-dir -e ./backend
+RUN pip install --no-cache-dir -e "./backend[sandbox]"
 
 # Pre-download embedding 與 reranker 模型到 image 內，避免每次冷啟動花時間抓 model。
 # HF Spaces free tier 沒 persistent disk，每次重啟都會用 image 內的快取。
