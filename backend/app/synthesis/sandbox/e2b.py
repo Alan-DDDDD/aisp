@@ -86,6 +86,22 @@ class E2BRunner(SandboxRunner):
             # 把 backend 的 app/ 模組打包進去，讓 generated code 能 import
             await _upload_app_modules(sbx, workdir)
 
+            # E2B 預設 python image 沒裝 pytest / pytest-asyncio / pydantic，
+            # 先補齊。-q 安靜；用 --disable-pip-version-check 省一行 stderr。
+            install = await sbx.commands.run(
+                "pip install -q --disable-pip-version-check "
+                "pytest pytest-asyncio pydantic",
+                timeout=120,
+            )
+            if (install.exit_code or 0) != 0:
+                return SandboxResult(
+                    exit_code=-2,
+                    setup_error=(
+                        "E2B sandbox 安裝 pytest 失敗：\n"
+                        f"{(install.stderr or install.stdout or '')[-1000:]}"
+                    ),
+                )
+
             # 執行 pytest
             obs_path = f"{workdir}/observer_log.json"
             env = {
