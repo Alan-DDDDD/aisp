@@ -17,8 +17,16 @@ class Settings(BaseSettings):
 
     gemini_api_key: str = ""
     groq_api_key: str = ""
+    cerebras_api_key: str = ""
     openrouter_api_key: str = ""
     ollama_base_url: str = "http://localhost:11434"
+
+    # Phase 6 — per-role provider routing（空字串 = 用 llm_provider 全域 default）。
+    # 設計理由：composer / synthesis 是高 token 量的角色，把它們指到 Cerebras 1M TPD
+    # 解 Groq 70B 100k TPD 的瓶頸；小任務（gap_judge）留在 Groq 8B 不會踩到限制。
+    composer_provider: str = ""
+    gap_planner_provider: str = ""   # 影響 planner / spec_enricher / code_gen / test_gen
+    gap_judge_provider: str = ""
 
     sqlite_path: str = "./data/aisp.db"
     chroma_persist_dir: str = "./data/chroma"
