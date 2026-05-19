@@ -70,3 +70,28 @@ class WsUserMessageOut(BaseModel):
 class WsErrorOut(BaseModel):
     type: Literal["error"] = "error"
     message: str
+
+
+# Phase 14 — UX progress events（送出後到 ai_suggestion 之間的「系統正在做什麼」）
+class WsAiThinkingStartOut(BaseModel):
+    """workflow 開始跑時馬上送一次，讓前端立刻有反饋。"""
+
+    type: Literal["ai_thinking_start"] = "ai_thinking_start"
+    room_id: str
+
+
+class WsAiStageChangedOut(BaseModel):
+    """workflow 內部跨入新階段（understanding / retrieving / composing）。"""
+
+    type: Literal["ai_stage_changed"] = "ai_stage_changed"
+    room_id: str
+    stage: str  # understanding | retrieving | composing
+    label: str  # 已 i18n 過、給前端直接顯示的字串
+
+
+class WsToolSynthesisTriggeredOut(BaseModel):
+    """tool_agent 偵測到 GAP 觸發合成。可能花 10-30 秒。"""
+
+    type: Literal["tool_synthesis_triggered"] = "tool_synthesis_triggered"
+    room_id: str
+    tool_name: str

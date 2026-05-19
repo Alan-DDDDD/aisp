@@ -20,6 +20,7 @@
 
 from __future__ import annotations
 
+import inspect
 import logging
 from typing import Any
 
@@ -38,6 +39,19 @@ from app.tools import registry as tool_registry
 from app.tools.base import BaseTool
 
 log = logging.getLogger(__name__)
+
+
+async def _emit_progress(ctx: AgentContext, payload: dict[str, Any]) -> None:
+    """安全呼叫 ctx.progress_emit。沒設或失敗時不影響主流程。"""
+    cb = getattr(ctx, "progress_emit", None)
+    if cb is None:
+        return
+    try:
+        ret = cb(payload)
+        if inspect.isawaitable(ret):
+            await ret
+    except Exception:  # noqa: BLE001
+        log.warning("tool_agent progress_emit failed", exc_info=True)
 
 
 ARG_GEN_SYSTEM_PROMPT = """你是 tool-calling assistant。給定一個 tool 的 spec
@@ -188,6 +202,13 @@ class ToolAgent(BaseAgent):
             )
 
         spec: ToolSpec = first_with_spec.gap_spec
+
+        # UX：合成可能花 10-30 秒（多輪 sandbox），先 emit 讓前端切「生成工具中」
+        await _emit_progress(
+            ctx,
+            {"type": "synthesis_triggered", "tool_name": spec.name},
+        )
+
         try:
             result = await self.orchestrator.synthesize(spec)  # type: ignore[union-attr]
         except Exception as e:  # noqa: BLE001

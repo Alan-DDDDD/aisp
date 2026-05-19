@@ -15,6 +15,10 @@ export const useChatStore = defineStore('chat', {
     selectedTraceMessageId: null,
     error: null,
     socket: null,
+    // Phase 14 — 等回應期間的暫存進度，收到 ai_suggestion 後清空
+    // { stage: 'thinking'|'understanding'|'retrieving'|'composing'|'synthesizing',
+    //   label: '...', synthesisToolName: string|null }
+    placeholder: null,
   }),
   getters: {
     selectedTrace(state) {
@@ -76,6 +80,7 @@ export const useChatStore = defineStore('chat', {
       this.selectedTraceMessageId = null
       this.connectionStatus = 'idle'
       this.error = null
+      this.placeholder = null
     },
 
     _connect() {
@@ -103,7 +108,35 @@ export const useChatStore = defineStore('chat', {
     _handleEvent(ev) {
       if (ev.type === 'user_message') {
         this._upsertMessage(ev.message)
+      } else if (ev.type === 'ai_thinking_start') {
+        // 立刻插入 placeholder bubble — 收到 ai_suggestion 才會被換掉
+        this.placeholder = {
+          stage: 'thinking',
+          label: '正在分析您的問題...',
+          synthesisToolName: null,
+        }
+      } else if (ev.type === 'ai_stage_changed') {
+        if (this.placeholder) {
+          this.placeholder = {
+            ...this.placeholder,
+            stage: ev.stage,
+            label: ev.label,
+          }
+        }
+      } else if (ev.type === 'tool_synthesis_triggered') {
+        if (this.placeholder) {
+          // 合成是「重大事件」— 蓋掉 stage label，提醒 user 這條路徑會比較久
+          this.placeholder = {
+            ...this.placeholder,
+            stage: 'synthesizing',
+            label: `偵測到新需求，正在為您生成工具「${ev.tool_name}」...`,
+            synthesisToolName: ev.tool_name,
+          }
+        }
       } else if (ev.type === 'ai_suggestion') {
+        // 收到最終結果 — 清掉 placeholder，插入真實 AI 訊息
+        const hadSynthesis = !!this.placeholder?.synthesisToolName
+        this.placeholder = null
         this._upsertMessage({
           id: ev.message_id,
           room_id: ev.room_id,
@@ -113,12 +146,15 @@ export const useChatStore = defineStore('chat', {
           trace_id: ev.trace?.id,
           citations: ev.citations || [],
           extras: ev.extras || {},
+          had_synthesis: hadSynthesis,
         })
         if (ev.trace) {
           this.tracesByMessageId[ev.message_id] = ev.trace
           this.selectedTraceMessageId = ev.message_id
         }
       } else if (ev.type === 'error') {
+        // 出錯也要清 placeholder，否則 user 看到 placeholder 永遠停在那
+        this.placeholder = null
         this.error = ev.message
       }
     },

@@ -20,12 +20,32 @@ from app.schemas.chat import (
     MessageOut,
     TraceOut,
     TraceStepOut,
+    WsAiStageChangedOut,
     WsAiSuggestionOut,
+    WsAiThinkingStartOut,
     WsErrorOut,
+    WsToolSynthesisTriggeredOut,
     WsUserMessageOut,
 )
 from app.workflow import loader as workflow_loader
 from app.workflow.runtime import run_workflow
+
+
+# Phase 14 — UX 進度：agent_id → user-facing stage 對應。
+# 設計取捨：只取「跨大階段」三類，避免並行 batch 內每個 step 都切讓 UI 抖動。
+# 未知 agent_id 不更新 stage（保留前一個）。
+_AGENT_STAGE_MAP: dict[str, tuple[str, str]] = {
+    # (stage_key, display_label)
+    "router": ("understanding", "正在分析您的問題..."),
+    "knowledge": ("retrieving", "正在查詢知識庫..."),
+    "tool_agent": ("retrieving", "正在評估可用工具..."),
+    "policy": ("retrieving", "正在檢查合規..."),
+    "tone": ("retrieving", "正在調整語氣..."),
+    "risk": ("retrieving", "正在評估風險..."),
+    "ticket_decision": ("retrieving", "正在判斷是否建單..."),
+    "clause_analyzer": ("retrieving", "正在分析條款..."),
+    "composer": ("composing", "正在組合回覆..."),
+}
 
 log = logging.getLogger(__name__)
 
@@ -160,6 +180,40 @@ async def _handle_event(room_id: str, data: dict) -> None:
         )
         return
 
+    # Phase 14 — 立刻送一個 thinking_start，前端可插入 placeholder bubble
+    await manager.broadcast(
+        room_id, WsAiThinkingStartOut(room_id=room_id).model_dump()
+    )
+
+    # 進度 callback：runtime / tool_agent 跑時送來，hub 翻譯成 user-facing event
+    last_stage: dict[str, str] = {"value": ""}
+
+    async def _on_progress(ev: dict) -> None:
+        ev_type = ev.get("type")
+        if ev_type == "step_started":
+            agent_id = ev.get("agent_id") or ""
+            mapping = _AGENT_STAGE_MAP.get(agent_id)
+            if not mapping:
+                return
+            stage, label = mapping
+            if stage == last_stage["value"]:
+                return  # 同 stage 不重複送（並行 batch 內多個 step 都是 retrieving）
+            last_stage["value"] = stage
+            await manager.broadcast(
+                room_id,
+                WsAiStageChangedOut(
+                    room_id=room_id, stage=stage, label=label
+                ).model_dump(),
+            )
+        elif ev_type == "synthesis_triggered":
+            await manager.broadcast(
+                room_id,
+                WsToolSynthesisTriggeredOut(
+                    room_id=room_id,
+                    tool_name=ev.get("tool_name") or "",
+                ).model_dump(),
+            )
+
     try:
         result = await run_workflow(
             workflow,
@@ -167,6 +221,7 @@ async def _handle_event(room_id: str, data: dict) -> None:
             workspace_id=workspace_id,
             room_id=room_id,
             history=history,
+            on_event=_on_progress,
         )
     except Exception as e:  # noqa: BLE001
         log.exception("Workflow failed in room %s", room_id)

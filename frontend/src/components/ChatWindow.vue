@@ -8,6 +8,7 @@ const input = ref('')
 const listEl = ref(null)
 
 const messages = computed(() => store.messages)
+const placeholder = computed(() => store.placeholder)
 
 const PROMPT_HINTS = {
   cs: '試試「70 歲可以申請車貸嗎？」或「信貸利率多少？」',
@@ -19,6 +20,18 @@ const hint = computed(() => PROMPT_HINTS[store.workspaceId] || '輸入訊息開�
 
 watch(
   messages,
+  async () => {
+    await nextTick()
+    if (listEl.value) {
+      listEl.value.scrollTop = listEl.value.scrollHeight
+    }
+  },
+  { deep: true }
+)
+
+// placeholder 出現或文字變動時也要捲到底
+watch(
+  placeholder,
   async () => {
     await nextTick()
     if (listEl.value) {
@@ -165,8 +178,39 @@ function formatTime(iso) {
             </div>
           </div>
 
+          <div
+            v-if="m.sender_role === 'ai' && m.had_synthesis"
+            class="mt-2 flex items-start gap-1.5 text-xs px-2 py-1.5 rounded bg-amber-50 text-amber-800 border border-amber-200"
+          >
+            <span class="font-medium shrink-0">需審核</span>
+            <span>新工具已生成，需系統管理員審核完成後才能正式使用。</span>
+          </div>
+
           <div v-if="m.sender_role === 'ai' && m.trace_id" class="text-xs mt-2 text-brand-600">
             點擊查看 Trace →
+          </div>
+        </div>
+      </div>
+
+      <!-- 等待中的 placeholder bubble — 收到 ai_suggestion 自動消失 -->
+      <div v-if="placeholder" class="flex justify-start">
+        <div
+          class="max-w-[88%] sm:max-w-[80%] rounded-2xl px-3 sm:px-4 py-2 shadow-sm bg-white text-slate-800 border border-slate-200"
+        >
+          <div class="text-xs opacity-70 mb-1">AI</div>
+          <div class="flex items-center gap-2 text-sm text-slate-600">
+            <span class="flex gap-1">
+              <span class="w-1.5 h-1.5 bg-brand-500 rounded-full animate-pulse"></span>
+              <span class="w-1.5 h-1.5 bg-brand-500 rounded-full animate-pulse" style="animation-delay:0.15s"></span>
+              <span class="w-1.5 h-1.5 bg-brand-500 rounded-full animate-pulse" style="animation-delay:0.3s"></span>
+            </span>
+            <span>{{ placeholder.label }}</span>
+          </div>
+          <div
+            v-if="placeholder.synthesisToolName"
+            class="mt-2 text-xs text-amber-700"
+          >
+            這項操作可能需要 10-30 秒，請稍候。
           </div>
         </div>
       </div>

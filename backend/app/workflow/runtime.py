@@ -10,9 +10,11 @@
 from __future__ import annotations
 
 import asyncio
+import inspect
 import logging
 import time
 import uuid
+from collections.abc import Awaitable, Callable
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -37,6 +39,21 @@ class WorkflowResult(BaseModel):
     total_latency_ms: int = 0
 
 
+ProgressCallback = Callable[[dict[str, Any]], Awaitable[None] | None]
+
+
+async def _safe_emit(cb: ProgressCallback | None, payload: dict[str, Any]) -> None:
+    """進度事件 callback 包裝：吃掉所有錯誤，不能讓 progress 影響主流程。"""
+    if cb is None:
+        return
+    try:
+        ret = cb(payload)
+        if inspect.isawaitable(ret):
+            await ret
+    except Exception:  # noqa: BLE001
+        log.warning("progress_emit callback failed", exc_info=True)
+
+
 async def run_workflow(
     workflow: WorkflowDef,
     *,
@@ -44,6 +61,7 @@ async def run_workflow(
     workspace_id: str,
     room_id: str,
     history: list[dict] | None = None,
+    on_event: ProgressCallback | None = None,
 ) -> WorkflowResult:
     trace_id = uuid.uuid4().hex
     ctx = AgentContext(
@@ -51,6 +69,7 @@ async def run_workflow(
         room_id=room_id,
         trace_id=trace_id,
         history=history or [],
+        progress_emit=on_event,
     )
     scope: dict[str, Any] = {
         "event": dict(event),
@@ -85,7 +104,7 @@ async def run_workflow(
 
         # 同層並行
         results = await asyncio.gather(
-            *(_run_step(step_by_id[sid], ctx, scope) for sid in batch),
+            *(_run_step(step_by_id[sid], ctx, scope, on_event) for sid in batch),
             return_exceptions=False,
         )
         for sid, step_result in zip(batch, results, strict=True):
@@ -125,8 +144,12 @@ async def _run_step(
     step: WorkflowStep,
     ctx: AgentContext,
     scope: dict[str, Any],
+    on_event: ProgressCallback | None = None,
 ) -> AgentStepResult:
     start = time.perf_counter()
+    await _safe_emit(
+        on_event, {"type": "step_started", "step_id": step.id, "agent_id": step.agent}
+    )
     try:
         agent: BaseAgent = agent_registry.get(step.agent)
     except KeyError as e:
@@ -147,6 +170,10 @@ async def _run_step(
         validated = agent.input_schema.model_validate(resolved_input)
         output = await agent.run(ctx, validated)
         latency = int((time.perf_counter() - start) * 1000)
+        await _safe_emit(
+            on_event,
+            {"type": "step_completed", "step_id": step.id, "agent_id": step.agent},
+        )
         return AgentStepResult(
             step_id=step.id,
             agent_id=step.agent,
@@ -157,6 +184,10 @@ async def _run_step(
     except Exception as e:  # noqa: BLE001 — runtime 必須隔離 agent 錯誤
         latency = int((time.perf_counter() - start) * 1000)
         log.exception("Step %s (%s) failed", step.id, step.agent)
+        await _safe_emit(
+            on_event,
+            {"type": "step_failed", "step_id": step.id, "agent_id": step.agent},
+        )
         return AgentStepResult(
             step_id=step.id,
             agent_id=step.agent,

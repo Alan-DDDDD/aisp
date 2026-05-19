@@ -1,16 +1,22 @@
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class AgentContext(BaseModel):
     """傳遞給每個 Agent 的執行上下文。"""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     workspace_id: str = "default"
     room_id: str
     trace_id: str
     history: list[dict[str, Any]] = Field(default_factory=list)
     variables: dict[str, Any] = Field(default_factory=dict)
+    # Phase 14 — UX progress：agent 在執行中可主動 emit 進度事件給 WS hub。
+    # None 表示沒人接（單測 / orchestrator-only）；hub 跑 chat 時會塞 broadcast callback。
+    # 簽名：(event: dict) -> Awaitable[None] | None
+    progress_emit: Any = None
 
 
 class AgentStepResult(BaseModel):
