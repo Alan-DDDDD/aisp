@@ -148,26 +148,50 @@ class ApprovalService:
             retriever=self.retriever,
         )
 
-        # 寫 GeneratedTool row
-        row = GeneratedTool(
-            id=tool_id,
-            version=spec.get("version", "1.0.0"),
-            synthesis_task_id=task.id,
-            workspace_id=task.workspace_id,
-            scope="workspace",  # 預設 scoped；admin 之後可 promote
-            description=spec.get("description", ""),
-            when_to_use=spec.get("when_to_use", ""),
-            when_not_to_use=spec.get("when_not_to_use", ""),
-            examples=spec.get("examples", []),
-            tags=spec.get("tags", []),
-            side_effect=spec.get("side_effect", "read_only"),
-            requires_approval=False,
-            source_path=str(path),
-            approved_by=reviewer,
-            approved_at=_now(),
-            status="active",
-        )
-        session.add(row)
+        # 寫 GeneratedTool row — 名字可能跟前一次 approve 撞（gap step 編號是
+        # 確定性的：auto_gap_s1 / s2...）。檔案 + registry 都是 upsert，DB 也比照：
+        # 既有 → UPDATE 視為 re-publish；不存在 → INSERT
+        existing = await session.get(GeneratedTool, tool_id)
+        if existing is None:
+            row = GeneratedTool(
+                id=tool_id,
+                version=spec.get("version", "1.0.0"),
+                synthesis_task_id=task.id,
+                workspace_id=task.workspace_id,
+                scope="workspace",  # 預設 scoped；admin 之後可 promote
+                description=spec.get("description", ""),
+                when_to_use=spec.get("when_to_use", ""),
+                when_not_to_use=spec.get("when_not_to_use", ""),
+                examples=spec.get("examples", []),
+                tags=spec.get("tags", []),
+                side_effect=spec.get("side_effect", "read_only"),
+                requires_approval=False,
+                source_path=str(path),
+                approved_by=reviewer,
+                approved_at=_now(),
+                status="active",
+            )
+            session.add(row)
+        else:
+            log.info(
+                "Approval: tool=%s 已存在 (prev task=%s)，視為 re-publish 更新",
+                tool_id,
+                existing.synthesis_task_id,
+            )
+            existing.version = spec.get("version", existing.version)
+            existing.synthesis_task_id = task.id
+            existing.workspace_id = task.workspace_id
+            existing.description = spec.get("description", "")
+            existing.when_to_use = spec.get("when_to_use", "")
+            existing.when_not_to_use = spec.get("when_not_to_use", "")
+            existing.examples = spec.get("examples", [])
+            existing.tags = spec.get("tags", [])
+            existing.side_effect = spec.get("side_effect", "read_only")
+            existing.requires_approval = False
+            existing.source_path = str(path)
+            existing.approved_by = reviewer
+            existing.approved_at = _now()
+            existing.status = "active"
 
         # 狀態轉移 + 審核紀錄
         await persistence.transition(session, task.id, persistence.STATE_REGISTERED)
