@@ -68,3 +68,5 @@ backend/.eval-data/
 
 # Claude Code 本機個人設定（含絕對路徑、permission allowlist）
 .claude/settings.local.json
+DEMO_RECORDING.md
+ARCHITECTURE_GUIDE.md
