@@ -33,6 +33,7 @@ from app.synthesis.schemas import (
     StepDecision,
     ToolCandidate,
     ToolSpec,
+    placeholder_tool_name,
 )
 from app.synthesis.tool_retriever import ToolRetriever
 from app.synthesis.tool_retriever import get_default as get_default_retriever
@@ -177,9 +178,12 @@ def _confidence_clear(c: float) -> bool:
 
 
 def _default_gap_spec(step: PlannerStep) -> ToolSpec:
-    """Shortcut_low / 防呆時的占位 spec；M4 Code Agent 會做 spec 補完。"""
+    """Shortcut_low / 防呆時的占位 spec；M4 Spec Enricher 會做 spec 補完並重命名。
+
+    name 用 description 的 hash 而非 step.id，避免「auto_gap_s1 跨 task 撞名」。
+    """
     return ToolSpec(
-        name=f"auto_gap_{step.id}",
+        name=placeholder_tool_name(step.description),
         description=step.description,
         when_to_use=step.description,
     )

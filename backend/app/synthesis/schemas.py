@@ -9,10 +9,39 @@
 
 from __future__ import annotations
 
+import hashlib
 from enum import StrEnum
 from typing import Any
 
 from pydantic import BaseModel, Field
+
+
+# Placeholder name 前綴 — Spec Enricher 看到這些必須重命名
+PLACEHOLDER_NAME_PREFIXES: tuple[str, ...] = (
+    "draft_",
+    "auto_gap_",
+    "auto_",
+    "gap_",
+    "tool_",
+    "step_",
+)
+
+
+def placeholder_tool_name(description: str) -> str:
+    """以 description 的 hash 當 placeholder name，避開「step.id 跨 task 撞名」。
+
+    同 description 永遠出同名（可重用 / re-publish 行為一致），不同 description
+    不撞。Spec Enricher 會基於語意把這個 placeholder 改成真正的 snake_case 名稱。
+    """
+    h = hashlib.md5((description or "").encode("utf-8")).hexdigest()[:8]
+    return f"draft_{h}"
+
+
+def is_placeholder_name(name: str) -> bool:
+    """偵測 spec name 是否仍是 placeholder（用於 enricher post-process 防呆）。"""
+    if not name:
+        return True
+    return any(name.startswith(p) for p in PLACEHOLDER_NAME_PREFIXES)
 
 # ── 共用列舉 ─────────────────────────────────────────────────────────
 

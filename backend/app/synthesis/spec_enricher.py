@@ -21,6 +21,8 @@ from app.synthesis.schemas import (
     EnrichedToolSpec,
     FieldSpec,
     ToolSpec,
+    is_placeholder_name,
+    placeholder_tool_name,
 )
 
 log = logging.getLogger(__name__)
@@ -29,6 +31,13 @@ log = logging.getLogger(__name__)
 SYSTEM_PROMPT = """你是 tool spec enricher。輸入是一份不完整的 tool 規格，請補完成可實作的版本。
 
 補完原則：
+0. **name（最重要 — 一定要重新命名）**：
+   - 必須由你根據 description 重新發明，格式 snake_case「動詞 + 名詞」反映工具用途
+   - 好例：query_user_schedule、convert_celsius_to_fahrenheit、send_approval_email
+   - 爛例（嚴禁直接保留輸入 spec 的這類 placeholder name）：
+     draft_a3f5b2c1、auto_gap_s1、tool_1、step_one、gap_handler
+   - 名稱要能唯一識別此工具用途（避免 user_query、do_thing 這類過泛的名）
+   - 如果輸入 spec 的 name 已經是好名字（snake_case 動詞+名詞、語意清楚），可以保留
 1. when_NOT_to_use：必填，列出至少一個「相關但不該用」的反例情境
 2. examples：至少 2 個具體範例（input/output 是真正的 dict，欄位要對得上 input/output_fields）
 3. input_fields / output_fields：用 Pydantic 能直接組裝的 type；只能用 str / int / float / bool / list / dict
@@ -130,10 +139,23 @@ class SpecEnricher:
             log.warning("SpecEnricher JSON 無法解析 | raw=%r", resp.text[:400])
             return self._minimal_fallback(raw)
 
-        # 確保 name 與 description 至少保留 raw 提供的版本
-        data.setdefault("name", raw.name)
+        # 確保 description / when_to_use 至少保留 raw 提供的版本
         data.setdefault("description", raw.description)
         data.setdefault("when_to_use", raw.when_to_use or raw.description)
+
+        # name 比較特別 — LLM 沒給就沿用 raw.name；最後不論來源若仍是 placeholder
+        # (auto_gap_* / draft_* ...)，用 description hash 兜底，至少保證「不同 spec 不同名」。
+        candidate = (data.get("name") or raw.name or "").strip()
+        if is_placeholder_name(candidate):
+            fallback = placeholder_tool_name(raw.description)
+            log.warning(
+                "SpecEnricher: LLM 未重新命名 (候選=%r)，fallback 用 description hash %s",
+                candidate,
+                fallback,
+            )
+            data["name"] = fallback
+        else:
+            data["name"] = candidate
 
         try:
             return EnrichedToolSpec.model_validate(data)

@@ -16,6 +16,7 @@ from app.synthesis.schemas import (
     PlannerStep,
     ToolCandidate,
     ToolSpec,
+    placeholder_tool_name,
 )
 
 log = logging.getLogger(__name__)
@@ -79,7 +80,7 @@ class AutoDecideReview(HumanReviewInterface):
             step_id=step.id,
             decision=DecisionType.GAP,
             gap_spec=ToolSpec(
-                name=f"auto_gap_{step.id}",
+                name=placeholder_tool_name(step.description),
                 description=step.description,
                 when_to_use=step.description,
             ),
