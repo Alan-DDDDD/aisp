@@ -9,6 +9,15 @@ steps:
     input:
       message: $event.message
       history: $context.history
+    # Router 判定問題不在本部門範圍 → 立即停下整條 pipeline，避免白跑
+    # tool_agent / knowledge / composer，更避免觸發 tool synthesis
+    halt_when_false: $router.in_scope
+    halt_emit:
+      draft: $router.scope_refusal_text
+      citations: []
+      policy: {}
+      tone: {}
+      tool: {}
 
   # TA4：tool_agent 跟 knowledge / policy / tone 同層並行（都只依賴 router）
   # tool_agent 沒命中時 tool_result=null，composer 走原本 RAG 流程

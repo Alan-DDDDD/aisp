@@ -26,6 +26,18 @@ class WorkflowStep(BaseModel):
         default="continue",
         description="continue（記錯但繼續下游）| abort（整條 workflow 中止）",
     )
+    halt_when_false: str | None = Field(
+        default=None,
+        description=(
+            "指向本 step 輸出的某個 boolean 欄位（如 $router.in_scope）— "
+            "為 false 時整條 workflow 中止，後續 step 不排程，"
+            "最終 emit 改用 halt_emit。"
+        ),
+    )
+    halt_emit: dict[str, Any] = Field(
+        default_factory=dict,
+        description="halt_when_false 命中時要 emit 的 payload；支援 $ 引用。",
+    )
 
     @field_validator("on_error")
     @classmethod

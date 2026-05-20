@@ -9,6 +9,12 @@ steps:
     input:
       message: $event.message
       history: $context.history
+    halt_when_false: $router.in_scope
+    halt_emit:
+      draft: $router.scope_refusal_text
+      citations: []
+      risk: {}
+      clause_analysis: {}
 
   - id: clause_analyzer
     agent: clause_analyzer

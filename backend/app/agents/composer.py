@@ -122,20 +122,15 @@ class ComposerAgent(BaseAgent):
 
     @staticmethod
     def _scope_refusal(ctx: AgentContext, payload: ComposerInput) -> str | None:
-        """若 intent 顯示問題不屬於本 workspace 範圍，回傳婉拒文字；否則 None。"""
+        """縱深防禦：workflow halt 沒設好時 composer 仍能擋下跑錯部門的問題。"""
         if not payload.intent or not payload.intent.category:
             return None
-        allowed = workspace_registry.get_allowed_categories(ctx.workspace_id)
-        if not allowed:  # 未設定允許清單 → 視為不限制
+        if workspace_registry.is_category_in_scope(
+            ctx.workspace_id, payload.intent.category
+        ):
             return None
-        category = payload.intent.category.lower()
-        if category in allowed:
-            return None
-        ws_name = workspace_registry.display_name(ctx.workspace_id)
-        return (
-            f"您詢問的內容看起來屬於「{category}」領域，本部門（{ws_name}）"
-            "僅處理特定範圍的問題。建議您切換到對應部門的聊天室再次提問，"
-            "以取得最精準的協助。"
+        return workspace_registry.build_scope_refusal(
+            ctx.workspace_id, payload.intent.category
         )
 
     @staticmethod

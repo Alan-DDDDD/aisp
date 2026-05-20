@@ -86,6 +86,7 @@ async def run_workflow(
     deps = _build_deps(workflow.steps)
     steps_done: list[AgentStepResult] = []
     aborted = False
+    halt_emit_override: dict[str, Any] | None = None
 
     start = time.perf_counter()
     remaining = set(step_by_id.keys())
@@ -116,7 +117,34 @@ async def run_workflow(
                 aborted = True
             remaining.remove(sid)
 
-    emit = resolve(workflow.emit, scope) if workflow.emit else {}
+            # Halt gate — step 跑成功且本 step 宣告 halt_when_false 時檢查
+            step = step_by_id[sid]
+            if (
+                not step_result.error
+                and step.halt_when_false
+                and halt_emit_override is None
+            ):
+                gate_value = _resolve_gate(step.halt_when_false, scope)
+                if not gate_value:
+                    log.info(
+                        "Workflow %s halted by step %s (halt_when_false=%s → %r)",
+                        workflow.id, sid, step.halt_when_false, gate_value,
+                    )
+                    halt_emit_override = resolve(step.halt_emit, scope) or {}
+                    if not isinstance(halt_emit_override, dict):
+                        halt_emit_override = {}
+                    await _safe_emit(
+                        on_event,
+                        {"type": "workflow_halted", "step_id": sid, "reason": "gate"},
+                    )
+                    # 跳出 batch processing — 同層其他 step 已跑完，後面 layers 不再排程
+                    aborted = True
+                    break
+
+    if halt_emit_override is not None:
+        emit = halt_emit_override
+    else:
+        emit = resolve(workflow.emit, scope) if workflow.emit else {}
     total = int((time.perf_counter() - start) * 1000)
 
     return WorkflowResult(
@@ -126,6 +154,14 @@ async def run_workflow(
         emit=emit if isinstance(emit, dict) else {},
         total_latency_ms=total,
     )
+
+
+def _resolve_gate(path: str, scope: dict[str, Any]) -> Any:
+    """halt_when_false 只接受 $xxx pure ref；解析後回原值（讓 caller 自己 bool 判斷）。
+
+    path 給的形式應為 `$<step>.<field>`；非 pure ref 視為錯誤 → 回 None（= 視為 false）。
+    """
+    return resolve(path, scope) if isinstance(path, str) else None
 
 
 def _build_deps(steps: list[WorkflowStep]) -> dict[str, set[str]]:

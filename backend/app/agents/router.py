@@ -4,6 +4,7 @@ from app.agents._json_util import parse_json_loose
 from app.agents.base import BaseAgent
 from app.providers.base import GenerationRequest, LLMProvider
 from app.schemas.agent import AgentContext, RouterInput, RouterOutput
+from app.workflow import workspace_registry
 
 log = logging.getLogger(__name__)
 
@@ -54,15 +55,32 @@ class RouterAgent(BaseAgent):
         data = parse_json_loose(resp.text)
         if data is None:
             log.warning("RouterAgent: cannot parse output → fallback (raw=%r)", resp.text[:200])
-            return RouterOutput(intent="general_inquiry", category="general")
+            return self._build_output(ctx, intent="general_inquiry", category="general")
 
         category = str(data.get("category", "general")).lower()
         if category not in _VALID_CATEGORIES:
             category = "general"
 
-        return RouterOutput(
+        return self._build_output(
+            ctx,
             intent=str(data.get("intent", "general_inquiry")),
             category=category,
+        )
+
+    @staticmethod
+    def _build_output(ctx: AgentContext, *, intent: str, category: str) -> RouterOutput:
+        """補上 in_scope / scope_refusal_text — 這兩個欄位讓 workflow runtime
+        可以在 router 之後直接 halt 整條 pipeline，不必等跑到 composer。"""
+        in_scope = workspace_registry.is_category_in_scope(ctx.workspace_id, category)
+        refusal = (
+            "" if in_scope
+            else workspace_registry.build_scope_refusal(ctx.workspace_id, category)
+        )
+        return RouterOutput(
+            intent=intent,
+            category=category,
+            in_scope=in_scope,
+            scope_refusal_text=refusal,
         )
 
     @staticmethod

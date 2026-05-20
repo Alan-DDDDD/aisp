@@ -39,6 +39,10 @@ class RouterInput(BaseModel):
 class RouterOutput(BaseModel):
     intent: str
     category: str
+    # 由 RouterAgent 用 ctx.workspace_id 對照 workspace.allowed_categories 算出。
+    # 給 workflow runtime 的 halt_when_false 用 — 不在範圍就直接停整條 pipeline。
+    in_scope: bool = True
+    scope_refusal_text: str = ""
 
 
 class ComposerInput(BaseModel):

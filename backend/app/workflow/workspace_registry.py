@@ -64,3 +64,27 @@ def get_allowed_categories(workspace_id: str) -> set[str] | None:
 def display_name(workspace_id: str) -> str:
     config = _REGISTRY.get(workspace_id)
     return (config or {}).get("display_name") or workspace_id
+
+
+def is_category_in_scope(workspace_id: str, category: str | None) -> bool:
+    """category 是否屬於這個 workspace 受理範圍。
+
+    沒設 allowed_categories（或無此 workspace）視為不限制 → True，向後相容。
+    """
+    allowed = get_allowed_categories(workspace_id)
+    if allowed is None:
+        return True
+    if not category:
+        return True
+    return category.lower() in allowed
+
+
+def build_scope_refusal(workspace_id: str, category: str | None) -> str:
+    """產生「跑錯部門」的婉拒文 — router halt 跟 composer 縱深防禦共用。"""
+    cat = (category or "").lower()
+    ws_name = display_name(workspace_id)
+    return (
+        f"您詢問的內容看起來屬於「{cat}」領域，本部門（{ws_name}）"
+        "僅處理特定範圍的問題。建議您切換到對應部門的聊天室再次提問，"
+        "以取得最精準的協助。"
+    )
