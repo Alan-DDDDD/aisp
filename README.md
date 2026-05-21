@@ -6,7 +6,7 @@ short_description: Enterprise AI Agent platform with YAML workflows
 
 # AISP — Enterprise AI Agent Platform
 
-[![tests](https://img.shields.io/badge/tests-214%20passing-brightgreen)](./MANUAL_TEST.md)
+[![tests](https://img.shields.io/badge/tests-214%20passing-brightgreen)]()
 [![phase](https://img.shields.io/badge/phase-14-blue)]()
 [![backend](https://img.shields.io/badge/backend-FastAPI%20%2B%20SQLAlchemy%202-009688)]()
 [![frontend](https://img.shields.io/badge/frontend-Vue%203%20%2B%20Vite-42b883)]()
@@ -94,6 +94,22 @@ steps:
 ```
 
 寫一個新 agent 只需要兩件事：定義 input/output 的 Pydantic schema、寫 `run(ctx, input) -> output`。runtime 跟 trace 機制都會自動接上。
+
+### 提前停下
+
+cs 收到 hr 問題、it 收到法務問題這種跨部門 query，整條 pipeline 不該再往下跑。Step 上可以宣告 `halt_when_false: $router.in_scope`：引用的值是 falsy，runtime 立刻終止整條 pipeline、emit `halt_emit` 裡指定的固定回覆，跳過所有後續 step（含 tool_agent 的合成路徑）。
+
+```yaml
+- id: router
+  agent: router
+  input: { message: $event.message }
+  halt_when_false: $router.in_scope
+  halt_emit:
+    draft: $router.scope_refusal_text
+    citations: []
+```
+
+「判定是不是 in-scope」是 router 的語意責任、「停下 pipeline」是 runtime 的機制責任，兩件事分開放。寫 agent 的人不用在自己的 prompt 裡 check 部門邊界，YAML 換個 step 也能套用同樣短路機制。
 
 ## Retrieval
 
@@ -421,7 +437,3 @@ AI_SP/
 | 14 | Chat ↔ Tool 整合 + composer 三層反幻覺 + 多 provider routing（Cerebras / Groq）+ E2B sandbox + 即時進度反饋 | ✅ |
 
 214 個 test 全綠；53 題 retrieval eval 在 `python -m scripts.run_eval`；frontend `npm run build` ~124 kB JS gzip ~47 kB。
-
-## 相關文件
-
-- [`MANUAL_TEST.md`](./MANUAL_TEST.md) — 對照前端操作的驗證手冊：6 step pipeline 流程、Admin UI 對應功能、5 條 frontend 測試 checklist、已知 limitations

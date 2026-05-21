@@ -70,3 +70,5 @@ backend/.eval-data/
 .claude/settings.local.json
 DEMO_RECORDING.md
 ARCHITECTURE_GUIDE.md
+ARCHITECTURE_GUIDE.pdf
+MANUAL_TEST.md
