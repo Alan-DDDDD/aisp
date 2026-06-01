@@ -28,6 +28,10 @@ class Settings(BaseSettings):
     gap_planner_provider: str = ""   # 影響 planner / spec_enricher / code_gen / test_gen
     gap_judge_provider: str = ""
 
+    # Cerebras 預設 model。Cerebras 偶爾調整 free tier 清單（例如 qwen-3-235b 曾被下架），
+    # 拉到 env var 後重新指就好，不用改 code。
+    cerebras_default_model: str = "gpt-oss-120b"
+
     sqlite_path: str = "./data/aisp.db"
     chroma_persist_dir: str = "./data/chroma"
     workspaces_dir: str = "./workspaces"

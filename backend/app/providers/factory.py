@@ -8,9 +8,6 @@ _cache: dict[str, LLMProvider] = {}
 
 
 _GROQ_DEFAULT_MODEL = "llama-3.1-8b-instant"
-# Cerebras free tier 上能跑、且中文/通用任務都行的最大模型。
-# 替代：gpt-oss-120b（OpenAI 開源）或 llama3.1-8b（小任務）。
-_CEREBRAS_DEFAULT_MODEL = "qwen-3-235b-a22b-instruct-2507"
 
 
 def get_provider(name: str | None = None) -> LLMProvider:
@@ -36,7 +33,7 @@ def get_provider(name: str | None = None) -> LLMProvider:
         # provider 的預設；多 provider 共存時各家 default 互不干擾。
         provider = CerebrasProvider(
             api_key=settings.cerebras_api_key,
-            default_model=_CEREBRAS_DEFAULT_MODEL,
+            default_model=settings.cerebras_default_model,
             verify_ssl=settings.llm_ssl_verify,
         )
     elif key == "ollama":

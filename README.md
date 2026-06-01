@@ -243,7 +243,7 @@ Query
 
 Groq free tier 70B 每天 100k token 不夠一個人開發又跑 demo，Cerebras free tier 給 1M TPD、~1800 tok/s。所以 bootstrap 按 agent 角色分派 provider：
 
-- `composer` / synthesis（planner / spec / code / test 生成）→ Cerebras `qwen-3-235b`（中文表現比 Llama 3.3 70B 好）
+- `composer` / synthesis（planner / spec / code / test 生成）→ Cerebras `gpt-oss-120b`（OpenAI 開源、120B；可用清單見 cloud.cerebras.ai/?tab=models，靠 `CEREBRAS_DEFAULT_MODEL` 切換）
 - `gap_judge` → Groq `llama-3.1-8b-instant`（量小、額度吃不完）
 - 其他 agent（router / policy / tone / risk / ticket_decision / clause_analyzer）→ `LLM_PROVIDER` 全域 default
 
@@ -309,7 +309,8 @@ uvicorn app.main:app --port 8000
 CEREBRAS_API_KEY=...
 COMPOSER_PROVIDER=cerebras
 GAP_PLANNER_PROVIDER=cerebras
-GAP_PLANNER_MODEL=qwen-3-235b-a22b-instruct-2507
+# 可省略 — 不設就吃 CEREBRAS_DEFAULT_MODEL（預設 gpt-oss-120b）
+GAP_PLANNER_MODEL=gpt-oss-120b
 ```
 
 啟動 log 看得到 `LLM routing — default=groq, composer=cerebras, planner=cerebras, judge=groq` 就代表 routing 生效。

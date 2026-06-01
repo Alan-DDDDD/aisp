@@ -1,11 +1,15 @@
 """Cerebras provider — OpenAI-compatible chat completions。
 
 Cerebras Cloud（https://cloud.cerebras.ai）對 free tier 提供 1M tokens/day、
-~1800 tok/s 的推理（Wafer-Scale Engine）。免費 tier 模型清單：
-  - qwen-3-235b-a22b-instruct-2507（推薦：中文友好、235B MoE）
-  - gpt-oss-120b
+~1800 tok/s 的推理（Wafer-Scale Engine）。免費 tier 模型常見選項：
+  - gpt-oss-120b（推薦：OpenAI 開源、120B，能力佳）
+  - llama-3.3-70b
   - llama3.1-8b
-  - zai-glm-4.7
+  - qwen-3-32b（中文友好）
+
+可用清單以 https://cloud.cerebras.ai/?tab=models 顯示為準，Cerebras 會調整
+（例如 qwen-3-235b-a22b-instruct-2507 曾下架）。預設 model 走 env var
+`CEREBRAS_DEFAULT_MODEL`，被下架時改 env 就好。
 
 API 路徑與 OpenAI 完全一致 —— /v1/chat/completions，只是 base_url 換掉、
 回傳結構同 OpenAI；429 / 5xx 用 exponential backoff 重試。
@@ -92,7 +96,7 @@ class CerebrasProvider(LLMProvider):
     def __init__(
         self,
         api_key: str,
-        default_model: str = "qwen-3-235b-a22b-instruct-2507",
+        default_model: str = "gpt-oss-120b",
         timeout_s: float = 30.0,
         verify_ssl: bool = True,
     ) -> None:
