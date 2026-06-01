@@ -51,12 +51,8 @@ backend/scripts/debug_tg_markdown.py
 # Embedding / HF model cache（執行時下載的本機快取）
 .cache/
 
-# Internal docs — 個人 spec / 流程文件，預設不公開
-# 用 docs/* 而非 docs/ 才能在內層做白名單例外
-docs/*
-# 例外：對外公開的 AI / RAG 設計與評估文件
-!docs/eval-report.md
-!docs/ai-design-decisions.md
+# Internal docs — 個人 spec / 流程文件，全部不公開
+docs/
 
 # 個人規劃 / 開發 log / 面試 cheat sheet — 內部使用，避免之後不小心 git add 回來
 PLAN.md
