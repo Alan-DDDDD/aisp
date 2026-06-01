@@ -71,18 +71,18 @@
 
 ---
 
-## 4. 8 個 agent：為什麼這樣切
+## 4. 9 個 agent：為什麼這樣切
 
 **反方論點**："把所有事情塞進一個大 prompt 不就好了？少 N 次 LLM call、少 N 倍 latency、少 N 倍 token 成本。"
 
-**為什麼仍切成 8 個**：
+**為什麼仍切成 9 個**：
 - **單一職責 → 單一 prompt → 單一錯誤面**：composer 漏字、policy 沒抓到風險、router 路由錯，trace 上一眼可分。一坨大 prompt 出錯是黑盒。
 - **schema 可被外部驗證**：每個 agent 走 JSON schema 強約束，pydantic 出口校驗；錯了重試/降級的 fallback 是 agent 級不是整個 chat 重來。
-- **並行**：同層 agent (`knowledge` + `policy` + `tone` + `risk`) 沒互相依賴，runtime 用 `asyncio.gather` 並行，整體 latency ≈ max(各 agent)，不是 sum。
+- **並行**：同層 agent (`tool_agent` + `knowledge` + `policy` + `tone`) 沒互相依賴，runtime 用 `asyncio.gather` 並行，整體 latency ≈ max(各 agent)，不是 sum。
 - **可替換**：法務部門想換成自家風險規則 → 替 `risk` agent 即可，不動其他人。
 - **可觀測**：trace 顯示每個 agent 的 input / output / latency / model，**面試時可以打開一筆 trace 講「為什麼 AI 給這個答案」**。
 
-**8 個 agent 的職責邊界**：見 README 的「Agent 套件」表格；每個都有獨立的 system prompt（在 `app/agents/*.py`）。
+**9 個 agent 的職責邊界**：見 README 的「Agents」表格（router / knowledge / tool_agent / policy / tone / risk / ticket_decision / clause_analyzer / composer）；每個都有獨立的 system prompt（在 `app/agents/*.py`）。`tool_agent` 是 Phase 14 加的，把 gap_detector 跟 tool dispatch 包成 workflow 中的一個 step，沒命中工具時讓出給 RAG。
 
 ---
 
